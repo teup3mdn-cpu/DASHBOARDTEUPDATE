@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Dashboard Kinerja UP3 Madiun</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+
+
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
+  <div>
+    <h1 style="margin-bottom:4px;">Dashboard kinerja UP3 Madiun</h1>
+    <p class="app-sub" style="margin-bottom:0;">Ringkasan kinerja operasional untuk pengambilan keputusan — susut, penjualan, P2TL, dan prognosa</p>
+  </div>
+  <button id="toggleConfigBtn" onclick="toggleConfigVisibility()" style="flex-shrink:0;padding:8px 14px;border:1px solid var(--border);background:#fff;color:var(--navy2);font-weight:700;font-size:12px;border-radius:8px;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:6px;box-shadow:var(--shadow-sm);">⚙ Pengaturan sumber data</button>
+</div>
+<div id="configStatusNote" style="display:none;font-size:11.5px;color:var(--muted);margin:-10px 0 14px;"></div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="susut">Susut per ULP</button>
+  <button class="tab-btn" data-tab="kwhjual">Evaluasi kWh jual</button>
+  <button class="tab-btn" data-tab="prabayar">Penjualan prabayar</button>
+  <button class="tab-btn" data-tab="p2tl">Evaluasi P2TL</button>
+  <button class="tab-btn" data-tab="gantimeter">Ganti meter & amrisasi</button>
+  <button class="tab-btn" data-tab="prognosa">Prognosa susut</button>
+</div>
+
+
+<!-- ================= TAB 1: SUSUT PER ULP ================= -->
+<div class="tab-panel active" id="tab-susut">
+  <div class="config">
+    <input id="susut_url" type="text" placeholder="Link CSV (kolom: ULP, Bulan, Target_Bulanan, Realisasi_Bulanan, Target_Kumulatif, Realisasi_Kumulatif)" />
+    <button onclick="susutLoad()">Muat data</button>
+    <button class="secondary" onclick="susutSample()">Lihat contoh</button>
+    <div class="hint">Format: satu baris per <b>ULP per bulan</b>. Kolom: <b>ULP, Bulan, Target_Bulanan, Realisasi_Bulanan, Target_Kumulatif, Realisasi_Kumulatif</b> (semua dalam persen, contoh: 7.56). Urutkan baris dari bulan paling lama ke paling baru.</div>
+    <div class="status" id="susut_status"></div>
+  </div>
+  <div id="susut_dash" style="display:none;">
+    <div class="exec-banner">
+      <div class="exec-banner-logo">⚡<span>PLN<br><small>UP3 MADIUN</small></span></div>
+      <div class="exec-banner-title">
+        <h2>KINERJA SUSUT UP3 MADIUN</h2>
+        <div class="exec-banner-period" id="susut_period">SD MEI 2026</div>
+      </div>
+    </div>
+
+    <div class="exec-summary" id="susut_exec_summary" style="display:none;">
+      <div class="eyebrow">Ringkasan eksekutif</div>
+      <div class="headline" id="susut_headline"></div>
+      <div class="exec-grid" id="susut_exec_grid"></div>
+    </div>
+
+    <div class="exec-layout">
+      <div class="exec-side">
+        <div class="exec-side-title">RINGKASAN UTAMA</div>
+        <div id="susut_side"></div>
+      </div>
+      <div class="exec-main">
+        <div class="kpi-row" id="susut_kpi"></div>
+        <div class="panels">
+          <div class="panel">
+            <div class="panel-head" id="susut_bar_head">Target vs realisasi kumulatif per ULP</div>
+            <div class="panel-body"><div class="chart-wrap"><canvas id="susut_chart"></canvas></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">Ranking kinerja susut per ULP</div>
+            <div class="panel-body"><div class="rank-list" id="susut_rank"></div></div>
+          </div>
+        </div>
+        <div class="panels" style="margin-top:14px;">
+          <div class="panel">
+            <div class="panel-head">Tren susut bulanan UP3 Madiun</div>
+            <div class="panel-body"><div class="chart-wrap"><canvas id="susut_trend"></canvas></div>
+              <div class="donut-caption" id="susut_trend_caption"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">Detail per ULP (kartu)</div>
+            <div class="panel-body" id="susut_cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;"></div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:14px;">
+          <div class="panel-head">Matriks target &amp; realisasi bulanan per ULP</div>
+          <div class="panel-body" style="padding:0;overflow-x:auto;">
+            <table id="susut_matrix" style="font-size:11.5px;"></table>
+            <div class="legend" style="padding:8px 14px;">
+              Warna TARGET/REALISASI &mdash; <b style="color:#c98500;">&#9632;</b> &lt;6% &nbsp;
+              <b style="color:#1c8a4a;">&#9632;</b> 6%&ndash;9,9% &nbsp;
+              <b style="color:#d23b3b;">&#9632;</b> 10%&ndash;12,8% &nbsp;
+              <b style="color:#1a1a1a;">&#9632;</b> &gt;12,8% &nbsp; | &nbsp;
+              Warna % TARGET &mdash; <b style="color:#1c8a4a;">&#9632;</b> tercapai (&ge;100%) &nbsp;
+              <b style="color:#c9a600;">&#9632;</b> 95%&ndash;99% &nbsp;
+              <b style="color:#d23b3b;">&#9632;</b> &lt;95%
+            </div>
+          </div>
+        </div>
+        <div class="exec-footer">
+          <div class="exec-foot-card green">
+            <div class="exec-foot-head">✓ Insight utama</div>
+            <ul id="susut_insight"></ul>
+          </div>
+          <div class="exec-foot-card red">
+            <div class="exec-foot-head">⚠ Perlu perhatian</div>
+            <ul id="susut_monitor"></ul>
+          </div>
+          <div class="exec-foot-card blue">
+            <div class="exec-foot-head">→ Rekomendasi tindak lanjut</div>
+            <ul id="susut_reco"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="empty" id="susut_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
+</div>
+
+<!-- ================= TAB 2: EVALUASI KWH JUAL ================= -->
+<div class="tab-panel" id="tab-kwhjual">
+  <div class="config">
+    <input id="kwh_url" type="text" placeholder="Link CSV (kolom: ULP, Kode, Periode (YYYY-MM), KWh_Jual, Unit)" />
+    <button onclick="kwhLoad()">Muat data</button>
+    <button class="secondary" onclick="kwhSample()">Lihat contoh</button>
+    <div class="hint">Format long: <b>ULP, Kode, Periode (YYYY-MM), KWh_Jual</b> — satu baris per ULP per kode proses billing per bulan. "Kode" adalah kode proses pembacaan pascabayar (51MDNAI, 51MDNAR, dst), <b>bukan</b> nama unit/ULP. Sumber: sheet PER KODE PROSES.</div>
+    <div class="status" id="kwh_status"></div>
+  </div>
+  <div id="kwh_dash" style="display:none;">
+    <div class="header-banner-light">
+      <h2 id="kwh_title">EVALUASI KWH JUAL UP3 MADIUN</h2>
+      <div class="sub" id="kwh_sub">Penjualan berubah dibanding bulan sebelumnya</div>
+    </div>
+    <div class="icon-kpi-row" id="kwh_kpi"></div>
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-head">Perbandingan kWh jual (GWh)</div>
+        <div class="panel-body"><div class="chart-wrap"><canvas id="kwh_chart"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Top kontributor pertumbuhan</div>
+        <div class="panel-body" id="kwh_podium"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Rincian kode proses billing per ULP</div>
+        <div class="panel-body" style="padding:0;">
+          <table><thead><tr><th>ULP</th><th>Kode proses</th><th id="kwh_th_prev">Bln -1</th><th id="kwh_th_last">Bln terakhir</th><th>Growth</th></tr></thead><tbody id="kwh_table"></tbody></table>
+        </div>
+      </div>
+    </div>
+    <div class="key-insight-banner">
+      <div class="ki-tab">KEY<br>INSIGHT</div>
+      <div class="ki-points" id="kwh_insight"></div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Komponen kWh jual: PAL (Prognosa) vs Realisasi P2TL vs Prabayar</div>
+      <div class="panel-body">
+        <div class="config" style="margin-bottom:12px;">
+          <input id="comp_url" type="text" placeholder="Link CSV (kolom: Periode, PAL_Prognosa, Realisasi_P2TL, Prabayar) — level UP3" />
+          <button onclick="compLoad()">Muat data</button>
+          <button class="secondary" onclick="compSample()">Lihat contoh</button>
+          <div class="hint">Format UP3 (bukan per unit): <b>Periode (YYYY-MM), PAL_Prognosa, Realisasi_P2TL, Prabayar</b> dalam kWh. PAL &amp; P2TL dari sheet "prognosa SUSUT" (kolom C dan D), Prabayar dari sheet "PREDIKSI PPOB" / tab DASH_Prabayar.</div>
+          <div class="status" id="comp_status"></div>
+        </div>
+        <div id="comp_dash" style="display:none;">
+          <div class="icon-kpi-row" id="comp_kpi"></div>
+          <div class="chart-wrap" style="height:280px;"><canvas id="comp_chart"></canvas></div>
+        </div>
+        <div class="empty" id="comp_empty">Masukkan link CSV komponen atau klik "Lihat contoh".</div>
+      </div>
+    </div>
+  </div>
+  <div class="empty" id="kwh_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
+</div>
+
+<!-- ================= TAB 3: PENJUALAN PRABAYAR ================= -->
+<div class="tab-panel" id="tab-prabayar">
+  <div class="config">
+    <input id="pra_url" type="text" placeholder="Link CSV (kolom: ULP, Periode (YYYY-MM), GWh_Prabayar)" />
+    <button onclick="praLoad()">Muat data</button>
+    <button class="secondary" onclick="praSample()">Lihat contoh</button>
+    <div class="hint">Format long: <b>ULP, Periode (YYYY-MM), GWh_Prabayar</b> per baris per ULP per bulan. Sumber: sheet PREDIKSI PPOB (bulan yang sudah lewat = realisasi).</div>
+    <div class="status" id="pra_status"></div>
+  </div>
+  <div class="manual-box">
+    <div class="title">Input manual (data yang belum tersedia otomatis)</div>
+    <div class="manual-grid">
+      <div><label>Komposisi pelanggan prabayar (%)</label><input type="number" step="0.01" id="pra_komposisi" value="52.67" oninput="praRecalcManual()"></div>
+      <div><label>Realisasi s.d tgl 20 (% dari total bulan)</label><input type="number" step="0.01" id="pra_pct_awal" value="68" oninput="praRecalcManual()"></div>
+    </div>
+  </div>
+  <div id="pra_dash" style="display:none;">
+    <div class="header-banner-light">
+      <h2 id="pra_title">KINERJA PENJUALAN KWH PRABAYAR</h2>
+      <div class="sub" id="pra_sub">Penjualan berubah dibanding bulan sebelumnya</div>
+    </div>
+    <div class="icon-kpi-row" id="pra_kpi"></div>
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-head">Perbandingan kWh jual prabayar (GWh)</div>
+        <div class="panel-body"><div class="chart-wrap"><canvas id="pra_chart"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Top kontributor pertumbuhan (GWh)</div>
+        <div class="panel-body" id="pra_podium"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Pola pembelian token (estimasi)</div>
+        <div class="panel-body" id="pra_pattern"></div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Riwayat bulanan</div>
+      <div class="panel-body" style="padding:0;">
+        <table><thead><tr><th>Periode</th><th>GWh</th><th>Growth</th></tr></thead><tbody id="pra_table"></tbody></table>
+      </div>
+    </div>
+    <div class="key-insight-banner">
+      <div class="ki-tab">KEY<br>INSIGHT</div>
+      <div class="ki-points" id="pra_insight"></div>
+    </div>
+  </div>
+  <div class="empty" id="pra_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
+</div>
+
+<!-- ================= TAB 4: EVALUASI P2TL ================= -->
+<div class="tab-panel" id="tab-p2tl">
+  <div class="config">
+    <input id="p2tl_url" type="text" placeholder="Link CSV (kolom: Bulan, Target_Bulanan, Realisasi_Bulanan, Target_Kumulatif, Realisasi_Kumulatif)" />
+    <button onclick="p2tlLoad()">Muat data</button>
+    <button class="secondary" onclick="p2tlSample()">Lihat contoh</button>
+    <div class="hint">Format (5 kolom, urut persis seperti kolom C&ndash;G di sheet sumber): <b>Bulan, Target_Bulanan, Realisasi_Bulanan, Target_Kumulatif, Realisasi_Kumulatif</b>. Kolom diambil berdasarkan <b>urutan posisi setelah kolom Bulan</b> (bukan nama header), supaya tidak salah tangkap seperti sebelumnya. Realisasi_Bulanan adalah nilai <b>s.d hari ini untuk bulan berjalan</b> (link langsung ke sumber, ter-update real-time).</div>
+    <div class="status" id="p2tl_status"></div>
+    <input id="p2tl_ulp_url" type="text" placeholder="Link CSV per ULP per bulan (kolom: ULP, Bulan, Target_Bulanan, Realisasi_Bulanan, Target_Kumulatif, Realisasi_Kumulatif)" style="margin-top:8px;" />
+    <button onclick="p2tlUlpLoad()">Muat data ULP</button>
+    <button class="secondary" onclick="p2tlUlpSample()">Lihat contoh</button>
+    <div class="hint">Format long (satu baris per <b>ULP per bulan</b>, 6 kolom): <b>ULP, Bulan, Target_Bulanan, Realisasi_Bulanan, Target_Kumulatif, Realisasi_Kumulatif</b> — persis seperti matriks TARGET/REAL/% per unit di sheet sumber (Jan&ndash;Des). Boleh menyertakan baris total "UP3 MADIUN" sebagai baris agregat paling bawah.</div>
+    <div class="status" id="p2tl_ulp_status"></div>
+  </div>
+  <div class="manual-box">
+    <div class="title">Input manual (update sendiri tiap periode)</div>
+    <div class="manual-grid">
+      <div><label>Jumlah regu TAD</label><input type="number" id="p2tl_regu_tad" value="9" oninput="p2tlRecalc()"></div>
+      <div><label>Jumlah regu Mandiri</label><input type="number" id="p2tl_regu_mandiri" value="1" oninput="p2tlRecalc()"></div>
+      <div><label>Total TS / benefit (Rp)</label><input type="number" id="p2tl_ts" value="1887611414" oninput="p2tlRecalc()"></div>
+      <div><label>Total biaya P2TL (Rp)</label><input type="number" id="p2tl_cost" value="1280774270" oninput="p2tlRecalc()"></div>
+    </div>
+  </div>
+  <div id="p2tl_dash" style="display:none;">
+    <div class="exec-banner">
+      <div class="exec-banner-logo">⚡<span>PLN<br><small>UP3 MADIUN</small></span></div>
+      <div class="exec-banner-title">
+        <h2>EVALUASI KINERJA P2TL UP3 MADIUN</h2>
+        <div class="exec-banner-period" id="p2tl_period">PERIODE JANUARI &ndash; MEI 2026</div>
+      </div>
+    </div>
+    <div class="exec-layout">
+      <div class="exec-side">
+        <div class="exec-side-title">RINGKASAN UTAMA</div>
+        <div id="p2tl_side"></div>
+      </div>
+      <div class="exec-main">
+        <div id="p2tl_live_banner" style="background:linear-gradient(135deg,#0d3a5c,#123a63);color:#fff;border-radius:12px;padding:14px 18px;margin-bottom:14px;box-shadow:var(--shadow-sm);">
+          <div style="font-size:12px;opacity:.85;margin-bottom:10px;" id="p2tl_live_caption"></div>
+          <div id="p2tl_live_points" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;"></div>
+        </div>
+        <div class="kpi-row" id="p2tl_kpi"></div>
+        <div class="panels">
+          <div class="panel">
+            <div class="panel-head">Capaian target kumulatif</div>
+            <div class="panel-body"><div class="chart-wrap" style="height:260px;"><canvas id="p2tl_donut"></canvas></div>
+              <div class="donut-caption" id="p2tl_donut_caption"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">Analisis finansial</div>
+            <div class="panel-body" id="p2tl_finance"></div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:14px;">
+          <div class="panel-head">Matriks target &amp; realisasi P2TL bulanan per ULP (kWh)</div>
+          <div class="panel-body" style="padding:0;overflow-x:auto;">
+            <table id="p2tl_ulp_matrix" style="font-size:11.5px;"></table>
+            <div class="legend" style="padding:8px 14px;">
+              Warna % CAPAIAN &mdash; <b style="color:#1c8a4a;">&#9632;</b> tercapai (&ge;100%) &nbsp;
+              <b style="color:#c9a600;">&#9632;</b> 95%&ndash;99% &nbsp;
+              <b style="color:#d23b3b;">&#9632;</b> &lt;95%
+            </div>
+            <div class="chart-wrap" style="height:220px;padding:10px 14px 14px;"><canvas id="p2tl_chart"></canvas></div>
+          </div>
+        </div>
+        <div class="exec-footer">
+          <div class="exec-foot-card green">
+            <div class="exec-foot-head">✓ Insight utama</div>
+            <ul id="p2tl_insight"></ul>
+          </div>
+          <div class="exec-foot-card red">
+            <div class="exec-foot-head">⚠ Hal yang perlu dimonitor</div>
+            <ul id="p2tl_monitor"></ul>
+          </div>
+          <div class="exec-foot-card blue">
+            <div class="exec-foot-head">⚙ Rekomendasi</div>
+            <ul id="p2tl_rekom"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="empty" id="p2tl_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
+</div>
+
+<!-- ================= TAB 5: GANTI METER & AMRISASI ================= -->
+<div class="tab-panel" id="tab-gantimeter">
+  <div class="config">
+    <input id="gm_url" type="text" placeholder="Link CSV (kolom: Bulan, Target_Kumulatif, Realisasi_Kumulatif)" />
+    <button onclick="gmLoad()">Muat data</button>
+    <button class="secondary" onclick="gmSample()">Lihat contoh</button>
+    <div class="hint">Format: <b>Bulan, Target_Kumulatif, Realisasi_Kumulatif</b> (unit ganti meter) — 12 baris Jan&ndash;Des, Target diisi penuh setahun, Realisasi diisi 0/kosong untuk bulan yang belum berjalan. Sumber: sheet GANTI METER.</div>
+    <div class="status" id="gm_status"></div>
+  </div>
+
+  <details class="manual-box">
+    <summary style="cursor:pointer;font-size:12.5px;font-weight:700;color:var(--navy);">⚙ Edit data manual (Amrisasi, Stok Material, Sisa Material Ganti Meter)</summary>
+    <div style="margin-top:12px;">
+      <div class="title">Amrisasi</div>
+      <div class="manual-grid">
+        <div><label>Target amrisasi tahun 2026</label><input type="number" id="gm_amr_target" value="415" oninput="gmRecalc()"></div>
+        <div><label>Realisasi amrisasi s.d bulan ini</label><input type="number" id="gm_amr_real" value="203" oninput="gmRecalc()"></div>
+      </div>
+    </div>
+    <div style="margin-top:14px;">
+      <div class="title">Stok material amrisasi</div>
+      <div class="manual-grid">
+        <div><label>Stok modem (buah)</label><input type="number" id="gm_stok_modem" value="180" oninput="gmRecalc()"></div>
+        <div><label>Stok simcard (buah)</label><input type="number" id="gm_stok_simcard" value="83" oninput="gmRecalc()"></div>
+        <div><label>Kebutuhan pemeliharaan AMR offline (buah/bulan)</label><input type="number" id="gm_kebutuhan_bulanan" value="48" oninput="gmRecalc()"></div>
+      </div>
+    </div>
+    <div style="margin-top:14px;">
+      <div class="title">Sisa material ganti meter</div>
+      <div class="manual-grid">
+        <div><label>Nama material 1</label><input type="text" id="gm_mat_1_nama" value="Paska 3P 5(10)" oninput="gmRecalc()"></div>
+        <div><label>Sisa (bh)</label><input type="number" id="gm_mat_1_sisa" value="10" oninput="gmRecalc()"></div>
+        <div><label>Status</label>
+          <select id="gm_mat_1_status" onchange="gmRecalc()">
+            <option value="Aman">Aman</option>
+            <option value="Perlu Antisipasi" selected>Perlu Antisipasi</option>
+            <option value="Kritis">Kritis</option>
+            <option value="Stok Habis">Stok Habis</option>
+          </select>
+        </div>
+      </div>
+      <div class="manual-grid" style="margin-top:8px;">
+        <div><label>Nama material 2</label><input type="text" id="gm_mat_2_nama" value="Paska 3P 5(80)" oninput="gmRecalc()"></div>
+        <div><label>Sisa (bh)</label><input type="number" id="gm_mat_2_sisa" value="23" oninput="gmRecalc()"></div>
+        <div><label>Status</label>
+          <select id="gm_mat_2_status" onchange="gmRecalc()">
+            <option value="Aman">Aman</option>
+            <option value="Perlu Antisipasi" selected>Perlu Antisipasi</option>
+            <option value="Kritis">Kritis</option>
+            <option value="Stok Habis">Stok Habis</option>
+          </select>
+        </div>
+      </div>
+      <div class="manual-grid" style="margin-top:8px;">
+        <div><label>Nama material 3</label><input type="text" id="gm_mat_3_nama" value="LPB 3P 5(80)" oninput="gmRecalc()"></div>
+        <div><label>Sisa (bh)</label><input type="number" id="gm_mat_3_sisa" value="0" oninput="gmRecalc()"></div>
+        <div><label>Status</label>
+          <select id="gm_mat_3_status" onchange="gmRecalc()">
+            <option value="Aman">Aman</option>
+            <option value="Perlu Antisipasi">Perlu Antisipasi</option>
+            <option value="Kritis">Kritis</option>
+            <option value="Stok Habis" selected>Stok Habis</option>
+          </select>
+        </div>
+      </div>
+      <div class="manual-grid" style="margin-top:8px;">
+        <div><label>Nama material 4</label><input type="text" id="gm_mat_4_nama" value="LPB 1P" oninput="gmRecalc()"></div>
+        <div><label>Sisa (bh)</label><input type="number" id="gm_mat_4_sisa" value="1250" oninput="gmRecalc()"></div>
+        <div><label>Status</label>
+          <select id="gm_mat_4_status" onchange="gmRecalc()">
+            <option value="Aman" selected>Aman</option>
+            <option value="Perlu Antisipasi">Perlu Antisipasi</option>
+            <option value="Kritis">Kritis</option>
+            <option value="Stok Habis">Stok Habis</option>
+          </select>
+        </div>
+      </div>
+      <div class="manual-grid" style="margin-top:8px;">
+        <div><label>Nama material 5</label><input type="text" id="gm_mat_5_nama" value="PASKA 1P" oninput="gmRecalc()"></div>
+        <div><label>Sisa (bh)</label><input type="number" id="gm_mat_5_sisa" value="4000" oninput="gmRecalc()"></div>
+        <div><label>Status</label>
+          <select id="gm_mat_5_status" onchange="gmRecalc()">
+            <option value="Aman" selected>Aman</option>
+            <option value="Perlu Antisipasi">Perlu Antisipasi</option>
+            <option value="Kritis">Kritis</option>
+            <option value="Stok Habis">Stok Habis</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <div id="gm_dash" style="display:none;">
+    <div class="exec-banner">
+      <div class="exec-banner-logo">⚡<span>PLN<br><small>UP3 MADIUN</small></span></div>
+      <div class="exec-banner-title">
+        <h2>EVALUASI KINERJA GANTI METER &amp; AMRISASI UP3 MADIUN</h2>
+        <div class="exec-banner-period" id="gm_period">PERIODE JANUARI &ndash; JUNI 2026</div>
+      </div>
+    </div>
+
+    <div class="exec-layout">
+      <div class="exec-side">
+        <div class="exec-side-title">RINGKASAN UTAMA</div>
+        <div id="gm_side"></div>
+      </div>
+      <div class="exec-main">
+        <div class="kpi-row" id="gm_kpi"></div>
+
+        <div class="panels">
+          <div class="panel">
+            <div class="panel-head">Rekap kinerja ganti meter (unit)</div>
+            <div class="panel-body"><div class="chart-wrap"><canvas id="gm_chart_bar"></canvas></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">Perbandingan kinerja ganti meter</div>
+            <div class="panel-body" id="gm_compare_table"></div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:14px;">
+          <div class="panel-head">Realisasi kumulatif ganti meter per bulan (unit)</div>
+          <div class="panel-body">
+            <div class="chart-wrap"><canvas id="gm_chart_line"></canvas></div>
+            <div class="donut-caption" id="gm_line_caption"></div>
+          </div>
+        </div>
+
+        <div class="panels" style="margin-top:14px;">
+          <div class="panel">
+            <div class="panel-head">Kinerja amrisasi</div>
+            <div class="panel-body"><div class="chart-wrap" style="height:220px;"><canvas id="gm_amr_donut"></canvas></div>
+              <div class="donut-caption" id="gm_amr_donut_caption"></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">Material utama amrisasi</div>
+            <div class="panel-body" id="gm_material"></div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:14px;">
+          <div class="panel-head">Sisa material ganti meter</div>
+          <div class="panel-body" id="gm_sisa_table"></div>
+        </div>
+
+        <div class="exec-footer" style="grid-template-columns:1fr;margin-top:14px;">
+          <div class="exec-foot-card green">
+            <div class="exec-foot-head">✓ Insight utama</div>
+            <ul id="gm_insight"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="empty" id="gm_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
+</div>
+
+<!-- ================= TAB 6: PROGNOSA SUSUT ================= -->
+<div class="tab-panel" id="tab-prognosa">
+  <div class="config">
+    <input id="prog_url" type="text" placeholder="Link CSV (kolom: Periode, KWh_Produksi, KWh_Jual, Susut_Persen, Status)" />
+    <button onclick="progLoad()">Muat data</button>
+    <button class="secondary" onclick="progSample()">Lihat contoh</button>
+    <div class="hint">Format: <b>Periode (YYYY-MM), KWh_Produksi, KWh_Jual, Susut_Persen, Status (Realisasi/Prognosa)</b>. Sumber: sheet prognosa SUSUT &mdash; bulan yang sudah fix ditandai "Realisasi", bulan berjalan ditandai "Prognosa".</div>
+    <div class="status" id="prog_status"></div>
+  </div>
+  <div id="prog_dash" style="display:none;">
+    <div class="exec-banner" style="background:linear-gradient(135deg,#0d3a5c,#06304f 60%, #0a4f2e 130%);">
+      <div class="exec-banner-logo">⚡<span>PLN<br><small>UP3 MADIUN</small></span></div>
+      <div class="exec-banner-title">
+        <h2>ANALISA PROGNOSA SUSUT, KWH PRODUKSI &amp; KWH JUAL</h2>
+        <div class="exec-banner-period" id="prog_period">BULAN BERJALAN</div>
+      </div>
+    </div>
+    <div class="icon-kpi-row" id="prog_kpi"></div>
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-head">KWh produksi vs KWh jual per bulan</div>
+        <div class="panel-body"><div class="chart-wrap"><canvas id="prog_chart1"></canvas></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">Tren susut (%) &mdash; realisasi vs prognosa</div>
+        <div class="panel-body"><div class="chart-wrap"><canvas id="prog_chart2"></canvas></div>
+          <div class="donut-caption" id="prog_trend_caption"></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Rincian per periode</div>
+      <div class="panel-body" style="padding:0;">
+        <table><thead><tr><th>Periode</th><th>Status</th><th>KWh produksi</th><th>KWh jual</th><th>KWh susut</th><th>Susut %</th></tr></thead><tbody id="prog_table"></tbody></table>
+      </div>
+    </div>
+    <div class="key-insight-banner">
+      <div class="ki-tab" style="background:#0a4f2e;">KEY<br>INSIGHT</div>
+      <div class="ki-points" id="prog_insight"></div>
+    </div>
+  </div>
+  <div class="empty" id="prog_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
+</div>
+
+
+<script src="js/helpers.js"></script>
+<script src="js/tab-susut.js"></script>
+<script src="js/tab-kwhjual.js"></script>
+<script src="js/tab-prabayar.js"></script>
+<script src="js/tab-p2tl.js"></script>
+<script src="js/tab-gantimeter.js"></script>
+<script src="js/tab-prognosa.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
