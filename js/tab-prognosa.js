@@ -264,3 +264,131 @@ function progSample(){
   ];
   progRender(mainRows, checkpointRows);
 }
+
+/* ================= TAMBAHAN: EVALUASI SIAP JUAL PER ULP (BULAN BERJALAN) =================
+   Fokus di bulan berjalan (angka besar, chart, tabel utama); data bulan lalu cuma jadi
+   tabel referensi kecil di bagian bawah (sesuai permintaan: "fokusnya di bulan berjalan").
+*/
+function siapJualRender(rows){
+  if(!rows || !rows[0]){ setStatus('prog_sj_status', false, 'Data kosong.'); return; }
+  const uKey = findKey(rows[0], ['ulp','unit']);
+  const blKey = findKey(rows[0], ['bulananlalubulan','bulananlalu']);
+  const hlKey = findKey(rows[0], ['harianlalubulan','harianlalu']);
+  const biKey = findKey(rows[0], ['bulananbulanini','bulananini']);
+  const hiKey = findKey(rows[0], ['harianbulanini','harianini']);
+  const tglKey = findKey(rows[0], ['tanggalupdate','tanggal','hari']);
+  if(!uKey || !blKey || !hlKey || !biKey || !hiKey){
+    setStatus('prog_sj_status', false, 'Kolom ULP/Bulanan_LaluBulan/Harian_LaluBulan/Bulanan_BulanIni/Harian_BulanIni tidak ditemukan.');
+    return;
+  }
+
+  const now = new Date();
+  const jumlahHariBulanIni = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  const bulanIniLabel = BULAN_ID_SHORT[now.getMonth()];
+
+  const isUp3 = ulp => /^UP3\b/i.test(String(ulp).trim());
+  const dataAll = rows.map(r=>{
+    const bulananLalu = num(r[blKey]), harianLalu = num(r[hlKey]);
+    const bulananIni = num(r[biKey]), harianIni = num(r[hiKey]);
+    const tglUpdate = tglKey ? num(r[tglKey]) : now.getDate();
+    const selisihBulanan = bulananIni - bulananLalu;
+    const selisihHarian = harianIni - harianLalu;
+    const pctBulanan = bulananLalu ? (selisihBulanan/bulananLalu*100) : 0;
+    const pctHarian = harianLalu ? (selisihHarian/harianLalu*100) : 0;
+    const prediksiAkhirBulan = tglUpdate ? (bulananIni/tglUpdate*jumlahHariBulanIni) : 0;
+    return {
+      ulp: String(r[uKey]||'').trim(),
+      bulananLalu, harianLalu, bulananIni, harianIni, tglUpdate,
+      selisihBulanan, selisihHarian, pctBulanan, pctHarian, prediksiAkhirBulan
+    };
+  }).filter(d=>d.ulp);
+
+  const ulpRows = dataAll.filter(d=>!isUp3(d.ulp));
+  let up3Row = dataAll.find(d=>isUp3(d.ulp));
+  if(!up3Row && ulpRows.length){
+    const bulananLalu = ulpRows.reduce((s,d)=>s+d.bulananLalu,0);
+    const harianLalu = ulpRows.reduce((s,d)=>s+d.harianLalu,0);
+    const bulananIni = ulpRows.reduce((s,d)=>s+d.bulananIni,0);
+    const harianIni = ulpRows.reduce((s,d)=>s+d.harianIni,0);
+    const tglUpdate = ulpRows[0].tglUpdate;
+    const selisihBulanan = bulananIni - bulananLalu;
+    const selisihHarian = harianIni - harianLalu;
+    up3Row = {
+      ulp:'UP3 MADIUN', bulananLalu, harianLalu, bulananIni, harianIni, tglUpdate,
+      selisihBulanan, selisihHarian,
+      pctBulanan: bulananLalu ? (selisihBulanan/bulananLalu*100) : 0,
+      pctHarian: harianLalu ? (selisihHarian/harianLalu*100) : 0,
+      prediksiAkhirBulan: tglUpdate ? (bulananIni/tglUpdate*jumlahHariBulanIni) : 0
+    };
+  }
+
+  const tglLabel = up3Row ? up3Row.tglUpdate : (ulpRows[0] ? ulpRows[0].tglUpdate : now.getDate());
+  document.getElementById('prog_sj_th_now').textContent = `s.d ${tglLabel} ${bulanIniLabel} (bulanan)`;
+
+  // ---- KPI ringkas level UP3 ----
+  if(up3Row){
+    document.getElementById('prog_sj_kpi').innerHTML = `
+      <div class="icon-kpi"><div class="circle navy">⚡</div><div><div class="ik-label">Siap jual s.d ${tglLabel} ${bulanIniLabel}</div><div class="ik-value">${(up3Row.bulananIni/1e6).toFixed(2)} <small>GWh</small></div></div></div>
+      <div class="icon-kpi"><div class="circle teal">📆</div><div><div class="ik-label">Rata-rata harian</div><div class="ik-value">${(up3Row.harianIni/1e3).toFixed(1)} <small>MWh/hari</small></div></div></div>
+      <div class="icon-kpi"><div class="circle purple">🔮</div><div><div class="ik-label">Prediksi akhir bulan</div><div class="ik-value">${(up3Row.prediksiAkhirBulan/1e6).toFixed(2)} <small>GWh</small></div></div></div>
+      <div class="icon-kpi"><div class="circle ${up3Row.pctBulanan>=0?'green':'amber'}">${up3Row.pctBulanan>=0?'⬆':'⬇'}</div><div><div class="ik-label">Growth vs bulan lalu</div><div class="ik-value">${up3Row.pctBulanan>=0?'+':''}${up3Row.pctBulanan.toFixed(2)}<small>%</small></div></div></div>`;
+  }
+
+  // ---- Chart: bulan berjalan vs prediksi akhir bulan, per ULP ----
+  destroyChart('prog_sj_chart');
+  charts['prog_sj_chart'] = new Chart(document.getElementById('prog_sj_chart'), {
+    type:'bar',
+    data:{ labels: ulpRows.map(d=>d.ulp), datasets:[
+      { label:`Siap jual s.d ${tglLabel} ${bulanIniLabel}`, data: ulpRows.map(d=>d.bulananIni/1e6), backgroundColor:'#0d2a4a', borderRadius:4, maxBarThickness:26 },
+      { label:'Prediksi akhir bulan', data: ulpRows.map(d=>d.prediksiAkhirBulan/1e6), backgroundColor:'#7fc4c4', borderRadius:4, maxBarThickness:26 }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}}, scales:{y:{title:{display:true,text:'GWh'}}} }
+  });
+
+  // ---- Tabel utama: fokus bulan berjalan ----
+  const rowsForTable = up3Row ? [...ulpRows, up3Row] : ulpRows;
+  document.getElementById('prog_sj_table').innerHTML = rowsForTable.map(d=>{
+    const isTotal = isUp3(d.ulp);
+    return `<tr${isTotal?' style="font-weight:800;background:var(--gray-bg);"':''}>
+      <td>${d.ulp}</td>
+      <td>${Math.round(d.bulananIni).toLocaleString('id-ID')}</td>
+      <td>${(d.harianIni/1e3).toFixed(1)} MWh</td>
+      <td>${Math.round(d.prediksiAkhirBulan).toLocaleString('id-ID')}</td>
+      <td><span class="pill ${d.pctBulanan>=0?'good':'bad'}">${d.pctBulanan>=0?'+':''}${d.pctBulanan.toFixed(2)}%</span></td>
+      <td><span class="pill ${d.pctHarian>=0?'good':'bad'}">${d.pctHarian>=0?'+':''}${d.pctHarian.toFixed(2)}%</span></td>
+    </tr>`;
+  }).join('');
+
+  // ---- Tabel referensi (kecil, di bawah): data bulan lalu ----
+  document.getElementById('prog_sj_table_lalu').innerHTML = rowsForTable.map(d=>{
+    const isTotal = isUp3(d.ulp);
+    return `<tr${isTotal?' style="font-weight:700;"':''}>
+      <td>${d.ulp}</td>
+      <td>${Math.round(d.bulananLalu).toLocaleString('id-ID')}</td>
+      <td>${(d.harianLalu/1e3).toFixed(1)} MWh</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('prog_sj_dash').style.display = 'block';
+  document.getElementById('prog_sj_empty').style.display = 'none';
+  setStatus('prog_sj_status', true, 'Data siap jual per ULP berhasil dimuat (' + ulpRows.length + ' ULP).');
+}
+
+async function siapJualLoad(){
+  const url = document.getElementById('prog_sj_url').value.trim();
+  if(!url){ setStatus('prog_sj_status', false, 'Masukkan link CSV terlebih dahulu.'); return; }
+  setStatus('prog_sj_status', true, 'Memuat data...');
+  try{ siapJualRender(await fetchCSV(url)); } catch(e){ setStatus('prog_sj_status', false, 'Gagal memuat: ' + e.message); }
+}
+
+function siapJualSample(){
+  siapJualRender([
+    {ULP:'MADIUN KOTA', Bulanan_LaluBulan:'35586238.30', Harian_LaluBulan:'1147943.17', Bulanan_BulanIni:'27899018.80', Harian_BulanIni:'1073039.18', Tanggal_Update:'26'},
+    {ULP:'MAGETAN',     Bulanan_LaluBulan:'27006407.00', Harian_LaluBulan:'871174.42',  Bulanan_BulanIni:'22650534.90', Harian_BulanIni:'860259.87',  Tanggal_Update:'26'},
+    {ULP:'NGAWI',       Bulanan_LaluBulan:'40274818.00', Harian_LaluBulan:'1299187.68', Bulanan_BulanIni:'33778879.61', Harian_BulanIni:'1374812.32', Tanggal_Update:'26'},
+    {ULP:'MAOSPATI',    Bulanan_LaluBulan:'16218224.00', Harian_LaluBulan:'523168.52',  Bulanan_BulanIni:'13789893.00', Harian_BulanIni:'530380.50',  Tanggal_Update:'26'},
+    {ULP:'CARUBAN',     Bulanan_LaluBulan:'20682474.00', Harian_LaluBulan:'667176.58',  Bulanan_BulanIni:'18214313.23', Harian_BulanIni:'700550.51',  Tanggal_Update:'26'},
+    {ULP:'DOLOPO',      Bulanan_LaluBulan:'15999817.70', Harian_LaluBulan:'516123.15',  Bulanan_BulanIni:'13100360.20', Harian_BulanIni:'503860.01',  Tanggal_Update:'26'},
+    {ULP:'MANTINGAN',   Bulanan_LaluBulan:'9894922.00',  Harian_LaluBulan:'319191.03',  Bulanan_BulanIni:'8208442.40',  Harian_BulanIni:'315709.32',  Tanggal_Update:'26'},
+  ]);
+}

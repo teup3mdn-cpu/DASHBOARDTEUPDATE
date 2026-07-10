@@ -525,6 +525,36 @@
       </div>
     </div>
     <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Evaluasi energi siap jual per ULP &mdash; fokus bulan berjalan</div>
+      <div class="panel-body">
+        <div class="config" style="margin-bottom:12px;">
+          <input id="prog_sj_url" type="text" placeholder="Link CSV (kolom: ULP, Bulanan_LaluBulan, Harian_LaluBulan, Bulanan_BulanIni, Harian_BulanIni, Tanggal_Update)" />
+          <button onclick="siapJualLoad()">Muat data</button>
+          <button class="secondary" onclick="siapJualSample()">Lihat contoh</button>
+          <div class="hint">Format per ULP: <b>ULP, Bulanan_LaluBulan, Harian_LaluBulan, Bulanan_BulanIni, Harian_BulanIni, Tanggal_Update</b>. <b>Tanggal_Update</b> = tanggal terakhir data bulan berjalan direkam (mis. 26). Boleh sertakan baris <b>"UP3 MADIUN"</b> di kolom ULP sebagai total &mdash; kalau tidak ada, dijumlahkan otomatis dari seluruh ULP.</div>
+          <div class="status" id="prog_sj_status"></div>
+        </div>
+        <div id="prog_sj_dash" style="display:none;">
+          <div class="icon-kpi-row" id="prog_sj_kpi"></div>
+          <div class="chart-wrap" style="height:280px;"><canvas id="prog_sj_chart"></canvas></div>
+          <div style="overflow-x:auto;margin-top:14px;">
+            <table>
+              <thead><tr><th>ULP</th><th id="prog_sj_th_now">s.d [tgl] bulan ini</th><th>Rata&sup2; harian</th><th>Prediksi akhir bulan</th><th>%Growth bulanan</th><th>%Growth harian</th></tr></thead>
+              <tbody id="prog_sj_table"></tbody>
+            </table>
+          </div>
+          <div style="margin-top:16px;">
+            <div style="font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">Referensi &mdash; data bulan lalu</div>
+            <table style="font-size:11.5px;opacity:.8;">
+              <thead><tr><th>ULP</th><th>Bulanan (bulan lalu)</th><th>Rata&sup2; harian (bulan lalu)</th></tr></thead>
+              <tbody id="prog_sj_table_lalu"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="empty" id="prog_sj_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:14px;">
       <div class="panel-head">Rincian per periode</div>
       <div class="panel-body" style="padding:0;overflow-x:auto;">
         <table><thead><tr><th>Periode</th><th>Status</th><th>KWh produksi</th><th>Prabayar</th><th>Paskabayar</th><th>P2TL</th><th>Jual total</th><th>KWh susut</th><th>Susut %</th></tr></thead><tbody id="prog_table"></tbody></table>
