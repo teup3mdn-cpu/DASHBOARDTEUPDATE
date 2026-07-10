@@ -8,6 +8,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <link rel="stylesheet" href="css/dashboard.css">
+<style>
+  /* Tambahan untuk TAB 6 - PROGNOSA SUSUT (breakdown jual + checkpoint bulan berjalan) */
+  .ik-sub{ font-size:10.5px; color:var(--muted,#6b7280); margin-top:2px; line-height:1.3; }
+  tr.row-forecast{ background:#fff6da !important; }
+  tr.row-forecast td{ font-style:italic; }
+  .circle.blue{ background:#1565C0; } /* fallback bila belum ada di dashboard.css */
+</style>
 </head>
 <body>
 
@@ -473,10 +480,14 @@
 <!-- ================= TAB 6: PROGNOSA SUSUT ================= -->
 <div class="tab-panel" id="tab-prognosa">
   <div class="config">
-    <input id="prog_url" type="text" placeholder="Link CSV (kolom: Periode, KWh_Produksi, KWh_Jual, Susut_Persen, Status)" />
-    <button onclick="progLoad()">Muat data</button>
-    <button class="secondary" onclick="progSample()">Lihat contoh</button>
-    <div class="hint">Format: <b>Periode (YYYY-MM), KWh_Produksi, KWh_Jual, Susut_Persen, Status (Realisasi/Prognosa)</b>. Sumber: sheet prognosa SUSUT &mdash; bulan yang sudah fix ditandai "Realisasi", bulan berjalan ditandai "Prognosa".</div>
+    <input id="prog_url" type="text" placeholder="Link CSV data historis (kolom: Periode, Status, KWh_Produksi, KWh_Prabayar, KWh_Paskabayar, KWh_P2TL)" />
+    <div class="hint">Format data historis (1 baris per bulan yang <b>sudah closed</b>): <b>Periode (YYYY-MM), Status (Realisasi), KWh_Produksi, KWh_Prabayar, KWh_Paskabayar, KWh_P2TL</b>.</div>
+    <input id="prog_ckp_url" type="text" placeholder="Link CSV checkpoint bulan berjalan (kolom: Periode, Hari, KWh_Produksi, KWh_Prabayar, KWh_Paskabayar, KWh_P2TL)" style="margin-top:8px;" />
+    <div class="hint">Format checkpoint <b>bulan berjalan</b> (kumulatif s.d. hari tsb, 3 baris: <b>Hari</b> = 10, 20, dan 28): <b>Periode (YYYY-MM), Hari, KWh_Produksi, KWh_Prabayar, KWh_Paskabayar, KWh_P2TL</b>. Prognosa 1 bulan penuh dihitung otomatis dari checkpoint terakhir &mdash; s.d. H-23 pakai forecast tren, di atas H-23 pakai rata-rata harian &times; jumlah hari sebulan.</div>
+    <div style="margin-top:8px;">
+      <button onclick="progLoad()">Muat data</button>
+      <button class="secondary" onclick="progSample()">Lihat contoh</button>
+    </div>
     <div class="status" id="prog_status"></div>
   </div>
   <div id="prog_dash" style="display:none;">
@@ -490,7 +501,7 @@
     <div class="icon-kpi-row" id="prog_kpi"></div>
     <div class="panels">
       <div class="panel">
-        <div class="panel-head">KWh produksi vs KWh jual per bulan</div>
+        <div class="panel-head">KWh produksi vs KWh jual (Prabayar/Paskabayar/P2TL) per bulan</div>
         <div class="panel-body"><div class="chart-wrap"><canvas id="prog_chart1"></canvas></div></div>
       </div>
       <div class="panel">
@@ -501,9 +512,22 @@
       </div>
     </div>
     <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Progres bulan berjalan (checkpoint H-10 / H-20 / H-28)</div>
+      <div class="panel-body"><div class="chart-wrap" style="height:220px;"><canvas id="prog_chart3"></canvas></div></div>
+    </div>
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Detail checkpoint bulan berjalan</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table>
+          <thead><tr><th>Checkpoint</th><th>KWh produksi (kum.)</th><th>Prabayar</th><th>Paskabayar</th><th>P2TL</th><th>Jual total</th><th>KWh susut</th><th>Rata² harian</th><th>Susut sementara</th></tr></thead>
+          <tbody id="prog_table_checkpoint"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:14px;">
       <div class="panel-head">Rincian per periode</div>
-      <div class="panel-body" style="padding:0;">
-        <table><thead><tr><th>Periode</th><th>Status</th><th>KWh produksi</th><th>KWh jual</th><th>KWh susut</th><th>Susut %</th></tr></thead><tbody id="prog_table"></tbody></table>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table><thead><tr><th>Periode</th><th>Status</th><th>KWh produksi</th><th>Prabayar</th><th>Paskabayar</th><th>P2TL</th><th>Jual total</th><th>KWh susut</th><th>Susut %</th></tr></thead><tbody id="prog_table"></tbody></table>
       </div>
     </div>
     <div class="key-insight-banner">

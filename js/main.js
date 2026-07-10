@@ -40,6 +40,15 @@ AUTO_TABS.forEach(({urlId})=>{
   if(!input) return;
   input.addEventListener('change', ()=> saveLink(urlId, input.value.trim()));
 });
+
+// Input pendamping yang bukan pemicu loadFn sendiri (nilainya dibaca di dalam loadFn
+// tab lain), tapi tetap perlu disimpan & dipulihkan otomatis seperti input "_url" lain.
+const EXTRA_URL_IDS = ['prog_ckp_url'];
+EXTRA_URL_IDS.forEach(id=>{
+  const input = document.getElementById(id);
+  if(!input) return;
+  input.addEventListener('change', ()=> saveLink(id, input.value.trim()));
+});
 document.querySelectorAll('.config button:not(.secondary)').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     // Cari input "_url" TERDEKAT SEBELUM tombol ini (bukan sekadar input pertama di
@@ -99,6 +108,10 @@ async function autoLoadAll(isInitial){
     tabsWithLink.forEach(({urlId})=>{
       const input = document.getElementById(urlId);
       if(input) input.value = links[urlId];
+    });
+    EXTRA_URL_IDS.forEach(id=>{
+      const input = document.getElementById(id);
+      if(input && links[id]) input.value = links[id];
     });
     // Sudah ada link tersimpan dari sesi sebelumnya -> sembunyikan panel "Muat data" secara default.
     toggleConfigVisibility(true);
