@@ -19,8 +19,23 @@ function parseCSV(text){
   if(field.length || row.length){ row.push(field); rowsRaw.push(row); }
   const nonEmpty = rowsRaw.filter(r => r.some(c => String(c).trim() !== ''));
   if(!nonEmpty.length) return [];
-  const headers = nonEmpty[0].map(h => h.trim());
-  return nonEmpty.slice(1).map(cells => {
+
+  // ---- Deteksi baris header yang sesungguhnya ----
+  // Sheet sumber sering punya baris judul/deskripsi di atas baris header asli, misal:
+  //   "Prognosa Historis,,,,,"
+  //   "Satu baris per bulan yang sudah closed...,,,,,"
+  //   "Periode,Status,KWh_Produksi,KWh_Prabayar,KWh_Paskabayar,KWh_P2TL"   <- header asli
+  // Baris judul/deskripsi seperti itu biasanya cuma mengisi SATU kolom (kolom A),
+  // sedangkan baris header asli mengisi BANYAK kolom sekaligus. Jadi: lewati dulu
+  // baris-baris di awal yang cuma punya <=1 kolom terisi, baru anggap baris pertama
+  // dengan >=2 kolom terisi sebagai header sesungguhnya. Ini mencegah bug lama di mana
+  // baris judul salah ke-anggap header, sehingga kolom "Periode"/"Produksi" jadi "tidak
+  // ditemukan" padahal sebenarnya ada beberapa baris di bawahnya.
+  let headerIdx = nonEmpty.findIndex(r => r.filter(c => String(c).trim() !== '').length >= 2);
+  if(headerIdx === -1) headerIdx = 0; // fallback: semua baris cuma 1 kolom, pakai baris pertama seperti biasa
+
+  const headers = nonEmpty[headerIdx].map(h => h.trim());
+  return nonEmpty.slice(headerIdx+1).map(cells => {
     const obj = {};
     headers.forEach((h,i) => obj[h] = (cells[i] !== undefined ? cells[i].trim() : ''));
     return obj;
@@ -43,7 +58,42 @@ function findKeyPriority(obj, candidateGroups){
   }
   return null;
 }
-function num(v){ return parseFloat(String(v||'0').replace(',','.')) || 0; }
+// ---- Parser angka yang aman untuk format Indonesia (titik = ribuan, koma = desimal)
+// SEKALIGUS tetap kompatibel dengan angka gaya lama di kode (mis. "12.13" untuk susut %).
+// Sebelumnya num() cuma replace(',', '.') tanpa membuang titik ribuan, sehingga angka
+// besar seperti "148.629.313,00" (dari CSV sheet) salah terbaca jadi 148.629 saja.
+function num(v){
+  let s = String(v==null ? '' : v).trim();
+  if(s === '') return 0;
+  // buang karakter selain digit/titik/koma/minus (mis. "Rp", spasi, %)
+  s = s.replace(/[^0-9.,-]/g, '');
+  if(s === '' || s === '-') return 0;
+
+  const hasComma = s.includes(',');
+  const dotCount = (s.match(/\./g) || []).length;
+
+  if(hasComma){
+    // Format Indonesia: titik = pemisah ribuan (buang semua), koma = desimal.
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if(dotCount >= 2){
+    // Tidak ada koma tapi titik lebih dari satu -> pasti pemisah ribuan
+    // (angka valid cuma boleh punya maksimal satu titik desimal).
+    s = s.replace(/\./g, '');
+  } else if(dotCount === 1){
+    // Satu titik, tanpa koma: bisa jadi pemisah ribuan (mis. "20.489" = 20489)
+    // atau memang angka desimal biasa (mis. "12.13" = 12.13, dipakai di banyak
+    // contoh kode & kolom susut %). Heuristik: kalau digit SETELAH titik PERSIS
+    // 3 angka dan digit SEBELUM titik pendek (1-3 digit), anggap pemisah ribuan
+    // ala Indonesia; selain itu biarkan sebagai desimal seperti perilaku lama.
+    const parts = s.split('.');
+    const intPart = parts[0].replace('-', ''), fracPart = parts[1];
+    if(fracPart && fracPart.length === 3 && intPart.length <= 3){
+      s = s.replace(/\./g, '');
+    }
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
 async function fetchCSV(url){
   const res = await fetch(url);
   if(!res.ok) throw new Error('HTTP ' + res.status);
@@ -79,4 +129,3 @@ function achievementTierClass(ratioPct){
   if(ratioPct >= 95) return 'ach-yellow';
   return 'ach-red';
 }
-
