@@ -4,6 +4,7 @@ const AUTO_REFRESH_MS = 5 * 60 * 1000; // refresh data setiap 5 menit
 
 const AUTO_TABS = [
   { urlId:'susut_url', loadFn:()=>susutLoad() },
+  { urlId:'susut_detail_url', loadFn:()=>susutDetailLoad() },
   { urlId:'kwh_url',   loadFn:()=>kwhLoad() },
   { urlId:'comp_url',  loadFn:()=>compLoad() },
   { urlId:'p2tl_url',     loadFn:()=>p2tlLoad() },
