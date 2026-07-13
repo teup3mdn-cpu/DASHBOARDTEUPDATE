@@ -6,7 +6,6 @@ const AUTO_TABS = [
   { urlId:'susut_url', loadFn:()=>susutLoad() },
   { urlId:'kwh_url',   loadFn:()=>kwhLoad() },
   { urlId:'comp_url',  loadFn:()=>compLoad() },
-  { urlId:'pra_url',   loadFn:()=>praLoad() },
   { urlId:'p2tl_url',     loadFn:()=>p2tlLoad() },
   { urlId:'p2tl_ulp_url', loadFn:()=>p2tlUlpLoad() },
   { urlId:'gm_url',    loadFn:()=>gmLoad() },

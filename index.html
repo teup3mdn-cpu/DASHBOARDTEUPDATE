@@ -31,7 +31,6 @@
 <div class="tabs">
   <button class="tab-btn active" data-tab="susut">Susut per ULP</button>
   <button class="tab-btn" data-tab="kwhjual">Evaluasi kWh jual</button>
-  <button class="tab-btn" data-tab="prabayar">Penjualan prabayar</button>
   <button class="tab-btn" data-tab="p2tl">Evaluasi P2TL</button>
   <button class="tab-btn" data-tab="gantimeter">Ganti meter & amrisasi</button>
   <button class="tab-btn" data-tab="prognosa">Prognosa susut</button>
@@ -181,56 +180,6 @@
     </div>
   </div>
   <div class="empty" id="kwh_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
-</div>
-
-<!-- ================= TAB 3: PENJUALAN PRABAYAR ================= -->
-<div class="tab-panel" id="tab-prabayar">
-  <div class="config">
-    <input id="pra_url" type="text" placeholder="Link CSV (kolom: ULP, Periode (YYYY-MM), GWh_Prabayar)" />
-    <button onclick="praLoad()">Muat data</button>
-    <button class="secondary" onclick="praSample()">Lihat contoh</button>
-    <div class="hint">Format long: <b>ULP, Periode (YYYY-MM), GWh_Prabayar</b> per baris per ULP per bulan. Sumber: sheet PREDIKSI PPOB (bulan yang sudah lewat = realisasi).</div>
-    <div class="status" id="pra_status"></div>
-  </div>
-  <div class="manual-box">
-    <div class="title">Input manual (data yang belum tersedia otomatis)</div>
-    <div class="manual-grid">
-      <div><label>Komposisi pelanggan prabayar (%)</label><input type="number" step="0.01" id="pra_komposisi" value="52.67" oninput="praRecalcManual()"></div>
-      <div><label>Realisasi s.d tgl 20 (% dari total bulan)</label><input type="number" step="0.01" id="pra_pct_awal" value="68" oninput="praRecalcManual()"></div>
-    </div>
-  </div>
-  <div id="pra_dash" style="display:none;">
-    <div class="header-banner-light">
-      <h2 id="pra_title">KINERJA PENJUALAN KWH PRABAYAR</h2>
-      <div class="sub" id="pra_sub">Penjualan berubah dibanding bulan sebelumnya</div>
-    </div>
-    <div class="icon-kpi-row" id="pra_kpi"></div>
-    <div class="panels">
-      <div class="panel">
-        <div class="panel-head">Perbandingan kWh jual prabayar (GWh)</div>
-        <div class="panel-body"><div class="chart-wrap"><canvas id="pra_chart"></canvas></div></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head">Top kontributor pertumbuhan (GWh)</div>
-        <div class="panel-body" id="pra_podium"></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head">Pola pembelian token (estimasi)</div>
-        <div class="panel-body" id="pra_pattern"></div>
-      </div>
-    </div>
-    <div class="panel" style="margin-top:14px;">
-      <div class="panel-head">Riwayat bulanan</div>
-      <div class="panel-body" style="padding:0;">
-        <table><thead><tr><th>Periode</th><th>GWh</th><th>Growth</th></tr></thead><tbody id="pra_table"></tbody></table>
-      </div>
-    </div>
-    <div class="key-insight-banner">
-      <div class="ki-tab">KEY<br>INSIGHT</div>
-      <div class="ki-points" id="pra_insight"></div>
-    </div>
-  </div>
-  <div class="empty" id="pra_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
 </div>
 
 <!-- ================= TAB 4: EVALUASI P2TL ================= -->
@@ -572,7 +521,6 @@
 <script src="js/helpers.js"></script>
 <script src="js/tab-susut.js"></script>
 <script src="js/tab-kwhjual.js"></script>
-<script src="js/tab-prabayar.js"></script>
 <script src="js/tab-p2tl.js"></script>
 <script src="js/tab-gantimeter.js"></script>
 <script src="js/tab-prognosa.js"></script>
