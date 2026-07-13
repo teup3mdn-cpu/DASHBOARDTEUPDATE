@@ -14,6 +14,20 @@
   tr.row-forecast{ background:#fff6da !important; }
   tr.row-forecast td{ font-style:italic; }
   .circle.blue{ background:#1565C0; } /* fallback bila belum ada di dashboard.css */
+
+  /* Tambahan untuk TAB 7 - MONITORING PELANGGAN TM */
+  .tm-kpi-row{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-bottom:14px; }
+  .tm-kpi-card{ background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px 14px; box-shadow:var(--shadow-sm); }
+  .tm-kpi-card .tm-kpi-label{ font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.3px; margin-bottom:6px; }
+  .tm-kpi-card .tm-kpi-value{ font-size:20px; font-weight:800; color:var(--navy2,#0d3a5c); font-family:'Manrope',sans-serif; }
+  .tm-kpi-card .tm-kpi-sub{ font-size:11px; color:var(--muted); margin-top:2px; }
+  .tm-badge{ display:inline-flex; align-items:center; gap:3px; font-weight:800; font-size:12px; padding:2px 7px; border-radius:20px; white-space:nowrap; }
+  .tm-badge.down{ color:#b02a2a; background:#fdeaea; }
+  .tm-badge.up{ color:#1c8a4a; background:#e8f6ee; }
+  .tm-badge.flat{ color:var(--muted); background:#f1f2f4; }
+  #tm_table_turun_kwh td, #tm_table_turun_persen td, #tm_table_top_kwh td{ white-space:nowrap; }
+  .tm-name-cell{ white-space:normal !important; max-width:220px; }
+  .tm-rank-no{ display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; background:#0d3a5c; color:#fff; font-size:10.5px; font-weight:800; }
 </style>
 </head>
 <body>
@@ -34,6 +48,7 @@
   <button class="tab-btn" data-tab="p2tl">Evaluasi P2TL</button>
   <button class="tab-btn" data-tab="gantimeter">Ganti meter & amrisasi</button>
   <button class="tab-btn" data-tab="prognosa">Prognosa susut</button>
+  <button class="tab-btn" data-tab="tm">Monitoring Pelanggan TM</button>
 </div>
 
 
@@ -544,12 +559,80 @@
 </div>
 
 
+<!-- ================= TAB 7: MONITORING PELANGGAN TM ================= -->
+<div class="tab-panel" id="tab-tm">
+  <div class="config">
+    <input id="tm_url" type="text" placeholder="Link CSV sheet REKAP TM (export apa adanya, termasuk baris judul/header)" />
+    <button onclick="tmLoad()">Muat data</button>
+    <button class="secondary" onclick="tmSample()">Lihat contoh</button>
+    <div class="hint">Tempel link <b>publish-to-CSV</b> dari sheet <b>REKAP TM</b> apa adanya (jangan diedit/dipotong headernya). Kolom diambil berdasarkan <b>posisi</b>, bukan nama header, karena sheet sumber punya 3 baris header berlapis: NO, IDPEL, NAMA, UNITUP, TARIF, DAYA, lalu blok RPTAG/PEMKWH/JN/FAKM per bulan (Des&ndash;Des), lalu SELISIH KWH &amp; PERSEN NAIK/TURUN. <b>Hanya kolom pemakaian (PEMKWH) bulan MEI, JUNI &amp; JULI</b> yang dipakai &mdash; bulan lain diabaikan karena datanya belum lengkap/#ERROR!. Selisih &amp; persen naik/turun memakai kolom yang sudah dihitung sheet (JULI vs JUNI, ditandai &#9660; turun / &#9650; naik).</div>
+    <div class="status" id="tm_status"></div>
+  </div>
+  <div id="tm_dash" style="display:none;">
+    <div class="exec-banner">
+      <div class="exec-banner-logo">⚡<span>PLN<br><small>UP3 MADIUN</small></span></div>
+      <div class="exec-banner-title">
+        <h2>MONITORING PELANGGAN TEGANGAN MENENGAH (TM)</h2>
+        <div class="exec-banner-period" id="tm_period">PERIODE MEI &ndash; JULI 2026</div>
+      </div>
+    </div>
+
+    <div class="tm-kpi-row" id="tm_kpi"></div>
+
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-head">10 Pelanggan TM &mdash; penurunan pemakaian (kWh) terbesar</div>
+        <div class="panel-body" style="padding:0;overflow-x:auto;">
+          <table id="tm_table_turun_kwh" style="font-size:11.5px;">
+            <thead><tr><th>#</th><th>Nama pelanggan</th><th>IDPEL</th><th>Unit</th><th>Tarif</th><th>Daya (VA)</th><th>Mei</th><th>Juni</th><th>Juli</th><th>Selisih kWh</th><th>%Turun</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">10 Pelanggan TM &mdash; penurunan pemakaian (%) terbesar</div>
+        <div class="panel-body" style="padding:0;overflow-x:auto;">
+          <table id="tm_table_turun_persen" style="font-size:11.5px;">
+            <thead><tr><th>#</th><th>Nama pelanggan</th><th>IDPEL</th><th>Unit</th><th>Tarif</th><th>Daya (VA)</th><th>Mei</th><th>Juni</th><th>Juli</th><th>Selisih kWh</th><th>%Turun</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">10 Pelanggan TM &mdash; kWh jual tertinggi (Juli)</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table id="tm_table_top_kwh" style="font-size:11.5px;">
+          <thead><tr><th>#</th><th>Nama pelanggan</th><th>IDPEL</th><th>Unit</th><th>Tarif</th><th>Daya (VA)</th><th>Mei</th><th>Juni</th><th>Juli</th><th>Growth Juni&rarr;Juli</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Pemakaian pelanggan TM per golongan tarif (Mei&ndash;Juli)</div>
+      <div class="panel-body"><div class="chart-wrap"><canvas id="tm_tarif_chart"></canvas></div>
+        <div class="donut-caption" id="tm_tarif_caption"></div>
+      </div>
+    </div>
+
+    <div class="key-insight-banner">
+      <div class="ki-tab" style="background:#0d3a5c;">KEY<br>INSIGHT</div>
+      <div class="ki-points" id="tm_insight"></div>
+    </div>
+  </div>
+  <div class="empty" id="tm_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
+</div>
+
+
 <script src="js/helpers.js"></script>
 <script src="js/tab-susut.js"></script>
 <script src="js/tab-kwhjual.js"></script>
 <script src="js/tab-p2tl.js"></script>
 <script src="js/tab-gantimeter.js"></script>
 <script src="js/tab-prognosa.js"></script>
+<script src="js/tab-tm.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

@@ -1,5 +1,9 @@
 /* ---------- shared helpers ---------- */
-function parseCSV(text){
+// Tokenizer CSV mentah: hasil array-of-arrays (baris kosong total dibuang), TANPA deteksi
+// header. Dipakai oleh parseCSV() di bawah, dan juga dipakai langsung oleh tab-tab yang
+// sumbernya punya header berlapis/tidak-standar (mis. sheet REKAP TM di tab Monitoring TM)
+// sehingga perlu ambil kolom berdasarkan POSISI, bukan nama header hasil auto-deteksi.
+function parseCSVRows(text){
   const rowsRaw = [];
   let row = [], field = '', inQuotes = false;
   for(let i=0;i<text.length;i++){
@@ -17,7 +21,15 @@ function parseCSV(text){
     }
   }
   if(field.length || row.length){ row.push(field); rowsRaw.push(row); }
-  const nonEmpty = rowsRaw.filter(r => r.some(c => String(c).trim() !== ''));
+  return rowsRaw.filter(r => r.some(c => String(c).trim() !== ''));
+}
+async function fetchCSVRaw(url){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  return parseCSVRows(await res.text());
+}
+function parseCSV(text){
+  const nonEmpty = parseCSVRows(text);
   if(!nonEmpty.length) return [];
 
   // ---- Deteksi baris header yang sesungguhnya ----
