@@ -475,7 +475,6 @@ function susutDetailRender(rows){
     return;
   }
 
-  susutDetailRenderMatrix();
   susutDetailPopulateMonthSelect();
   susutDetailRenderBreakdown();
 
@@ -493,29 +492,6 @@ async function susutDetailLoad(){
     if(!detailRows.length){ setStatus('susut_detail_status', false, 'Tidak ada baris data bulan yang terbaca dari CSV ini. Pastikan link mengarah ke sheet "PERHITUNGAN SUSUT" yang benar.'); return; }
     susutDetailRender(detailRows);
   } catch(e){ setStatus('susut_detail_status', false, 'Gagal memuat: ' + e.message); }
-}
-
-function susutDetailRenderMatrix(){
-  let thead = '<thead><tr><th>ULP</th>' + susutDetailBulans.map(b=>`<th>${b}</th>`).join('') + '</tr></thead>';
-  let tbody = '<tbody>';
-  susutDetailUlps.forEach(u=>{
-    const getRow = (b)=> susutDetailData.find(d=>d.ulp===u && d.bulan===b);
-    tbody += `<tr><td>${u}</td>` + susutDetailBulans.map(b=>{
-      const d = getRow(b);
-      if(!d) return '<td>-</td>';
-      const { susut09Kom } = susutDetailRatioKumulatif(getRow, b);
-      return `<td class="${susutDetailTierClass(susut09Kom)}">${susut09Kom.toFixed(2)}%</td>`;
-    }).join('') + '</tr>';
-  });
-  const getRowUp3 = (b)=> susutDetailUp3ForBulan(b);
-  tbody += `<tr class="up3-row"><td>UP3 MADIUN</td>` + susutDetailBulans.map(b=>{
-    const d = getRowUp3(b);
-    if(!d) return '<td>-</td>';
-    const { susut09Kom } = susutDetailRatioKumulatif(getRowUp3, b);
-    return `<td class="${susutDetailTierClass(susut09Kom)}">${susut09Kom.toFixed(2)}%</td>`;
-  }).join('') + '</tr>';
-  tbody += '</tbody>';
-  document.getElementById('susut_detail_matrix').innerHTML = thead + tbody;
 }
 
 function susutDetailPopulateMonthSelect(){
@@ -567,10 +543,10 @@ function susutDetailRenderBreakdown(){
       `<td>${ratioBln3.tanpaEminBln.toFixed(2)}%</td><td>${tanpaEminKom.toFixed(2)}%</td><td>${up3TargetCell}</td></tr>`;
 
     document.getElementById('susut_detail_kpi').innerHTML = `
-      <div class="kpi-card"><div class="kpi-label">KWh produksi UP3 (${bulan})</div><div class="kpi-value">${(d3.kwhProduksi/1e6).toFixed(2)}</div><div class="kpi-sub">GWh</div></div>
-      <div class="kpi-card ${susutKom<=8?'green':(susutKom<=10?'amber':'red')}"><div class="kpi-label">Susut (III-07+JBST) kumulatif</div><div class="kpi-value">${susutKom.toFixed(2)}%</div><div class="kpi-sub">s.d ${bulan}</div></div>
-      <div class="kpi-card ${susut09Kom<=8?'green':(susut09Kom<=10?'amber':'red')}"><div class="kpi-label">Susut III.09 kumulatif</div><div class="kpi-value">${susut09Kom.toFixed(2)}%</div><div class="kpi-sub">s.d ${bulan}</div></div>
-      <div class="kpi-card purple"><div class="kpi-label">Tanpa E-Min (bulan ${bulan})</div><div class="kpi-value">${ratioBln3.tanpaEminBln.toFixed(2)}%</div></div>`;
+      <div class="kpi-card"><div class="kpi-label">KWh Produksi (${bulan})</div><div class="kpi-value">${(d3.kwhProduksi/1e6).toFixed(2)}</div><div class="kpi-sub">GWh</div></div>
+      <div class="kpi-card red"><div class="kpi-label">P2TL (${bulan})</div><div class="kpi-value">${(d3.p2tl/1e6).toFixed(2)}</div><div class="kpi-sub">GWh</div></div>
+      <div class="kpi-card purple"><div class="kpi-label">LPB (${bulan})</div><div class="kpi-value">${(d3.lpb/1e6).toFixed(2)}</div><div class="kpi-sub">GWh</div></div>
+      <div class="kpi-card amber"><div class="kpi-label">PAL (${bulan})</div><div class="kpi-value">${(d3.pal/1e6).toFixed(2)}</div><div class="kpi-sub">GWh</div></div>`;
   }
   tbody += '</tbody>';
   document.getElementById('susut_detail_breakdown').innerHTML = thead + tbody;
