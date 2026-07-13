@@ -167,6 +167,27 @@
   #susut_matrix tr.up3-row td.tier-orange,#susut_matrix tr.up3-row td.tier-green,#susut_matrix tr.up3-row td.tier-red,#susut_matrix tr.up3-row td.tier-black,#susut_matrix tr.up3-row td.ach-green,#susut_matrix tr.up3-row td.ach-yellow,#susut_matrix tr.up3-row td.ach-red,#p2tl_ulp_matrix tr.up3-row td.ach-green,#p2tl_ulp_matrix tr.up3-row td.ach-yellow,#p2tl_ulp_matrix tr.up3-row td.ach-red{opacity:.95;}
   #susut_matrix .legend, #p2tl_ulp_matrix .legend{font-size:10.5px;color:var(--muted);font-weight:500;}
 
+  /* ---- Tabel sub-dashboard "Detail Perhitungan Susut" (matrix ringkas + breakdown per ULP) ---- */
+  #susut_detail_matrix, #susut_detail_breakdown{border-collapse:collapse;width:100%;}
+  #susut_detail_matrix th, #susut_detail_matrix td,
+  #susut_detail_breakdown th, #susut_detail_breakdown td{padding:8px 10px;border:1px solid var(--border);white-space:nowrap;text-align:right;}
+  #susut_detail_matrix th:first-child, #susut_detail_matrix td:first-child,
+  #susut_detail_breakdown th:first-child, #susut_detail_breakdown td:first-child{text-align:left;font-weight:700;position:sticky;left:0;background:#fff;z-index:1;}
+  #susut_detail_matrix thead th, #susut_detail_breakdown thead th{background:var(--navy);color:#fff;font-size:10.5px;letter-spacing:.3px;}
+  #susut_detail_matrix tbody tr:nth-child(even):not(.up3-row),
+  #susut_detail_breakdown tbody tr:nth-child(even):not(.up3-row){background:var(--gray-bg);}
+  #susut_detail_matrix tbody tr:hover:not(.up3-row),
+  #susut_detail_breakdown tbody tr:hover:not(.up3-row){background:#eaf1fb;}
+  #susut_detail_matrix tbody tr:hover:not(.up3-row) td:first-child,
+  #susut_detail_breakdown tbody tr:hover:not(.up3-row) td:first-child{background:#eaf1fb;}
+  #susut_detail_matrix tr.up3-row td, #susut_detail_breakdown tr.up3-row td{background:var(--navy);color:#fff;font-weight:800;}
+  #susut_detail_matrix td.ach-green, #susut_detail_breakdown td.ach-green{background:#57c26b;color:#0a3d1e;font-weight:800;}
+  #susut_detail_matrix td.ach-yellow, #susut_detail_breakdown td.ach-yellow{background:#ffe066;color:#5a4b00;font-weight:800;}
+  #susut_detail_matrix td.ach-red, #susut_detail_breakdown td.ach-red{background:#e34848;color:#fff;font-weight:800;}
+  #susut_detail_breakdown tr.up3-row td.ach-green, #susut_detail_breakdown tr.up3-row td.ach-yellow, #susut_detail_breakdown tr.up3-row td.ach-red{opacity:.95;}
+  #susut_detail_breakdown td.target-cell{font-weight:700;color:var(--navy2);background:#f5f8fc;}
+  #susut_detail_breakdown tr.up3-row td.target-cell{background:var(--navy);color:#ffcc00;}
+
   /* ---- icon KPI row (prabayar / kwh jual style) ---- */
   .icon-kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px;}
   .icon-kpi{background:#fff;border-radius:12px;padding:15px;display:flex;align-items:center;gap:11px;box-shadow:var(--shadow-sm);transition:box-shadow .15s;}

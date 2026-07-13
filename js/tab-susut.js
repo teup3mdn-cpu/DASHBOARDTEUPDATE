@@ -292,7 +292,8 @@ function masterParseSusutSheet(text){
       PAL: masterNum(r[2]), P2TL: masterNum(r[3]), PESTA: masterNum(r[4]),
       Lain2_Suplisi: masterNum(r[5]), TAL_TUL: masterNum(r[6]), Restitusi: masterNum(r[7]),
       LPB: masterNum(r[8]), PSSD: masterNum(r[9]), EMIN: masterNum(r[11]),
-      TUL_III09: masterNum(r[12]), KWH_Produksi: masterNum(r[13])
+      TUL_III09: masterNum(r[12]), KWH_Produksi: masterNum(r[13]),
+      Target_Kumulatif: masterNum(r[20])
     });
     susutRows.push({
       ULP: currentUlp, Bulan: bulan,
@@ -365,6 +366,7 @@ function susutSample(){
 let susutDetailData = [];
 let susutDetailUlps = [];
 let susutDetailBulans = [];
+let susutDetailUp3Target = {};
 
 function susutDetailToggle(){
   const sec = document.getElementById('susut_detail_section');
@@ -437,6 +439,7 @@ function susutDetailRender(rows){
   const eminKey = findKey(rows[0], ['emin']);
   const tul309Key = findKey(rows[0], ['tuliii09','tuliii']);
   const kwhProdKey = findKey(rows[0], ['kwhproduksi','produksi']);
+  const targetKey = findKey(rows[0], ['targetkumulatif','target']);
   if(!uKey||!bKey||!palKey||!p2tlKey||!tul309Key||!kwhProdKey){
     setStatus('susut_detail_status', false, 'Kolom wajib (ULP/Bulan/PAL/P2TL/TUL_III09/KWH_Produksi) tidak lengkap ditemukan.');
     return;
@@ -449,12 +452,19 @@ function susutDetailRender(rows){
     lain2: lain2Key?num(r[lain2Key]):0, taltul: taltulKey?num(r[taltulKey]):0,
     restitusi: restitusiKey?num(r[restitusiKey]):0, lpb: lpbKey?num(r[lpbKey]):0,
     pssd: pssdKey?num(r[pssdKey]):0, emin: eminKey?num(r[eminKey]):0,
-    tul309: num(r[tul309Key]), kwhProduksi: num(r[kwhProdKey])
-  })).filter(d=>d.ulp && d.bulan && !isUp3Total(d.ulp));
+    tul309: num(r[tul309Key]), kwhProduksi: num(r[kwhProdKey]),
+    target: targetKey?num(r[targetKey]):null
+  })).filter(d=>d.ulp && d.bulan);
+
+  // Simpan target UP3 MADIUN per bulan terpisah (dibaca dari baris "UP3 MADIUN" sebelum
+  // dibuang) — dipakai untuk kolom Target di baris total, karena target %-nya tidak bisa
+  // dijumlahkan begitu saja dari target tiap ULP.
+  susutDetailUp3Target = {};
+  dataAll.filter(d=>isUp3Total(d.ulp)).forEach(d=>{ susutDetailUp3Target[d.bulan] = d.target; });
 
   // Baris "UP3 MADIUN" kalau ikut ter-upload di CSV SENGAJA dibuang (isUp3Total di atas) —
   // nilai UP3 selalu dihitung ulang dari penjumlahan ULP, bukan dipercaya dari CSV.
-  susutDetailData = dataAll.filter(d=>d.kwhProduksi>0); // hanya bulan yang sudah terisi
+  susutDetailData = dataAll.filter(d=>!isUp3Total(d.ulp) && d.kwhProduksi>0); // hanya bulan yang sudah terisi
   susutDetailUlps = [...new Set(susutDetailData.map(d=>d.ulp))];
   susutDetailBulans = [...new Set(susutDetailData.map(d=>d.bulan))];
 
@@ -522,23 +532,23 @@ function susutDetailRenderBreakdown(){
     {k:'tul309', label:'TUL III-09'}, {k:'kwhProduksi', label:'KWh Produksi'}
   ];
   let thead = '<thead><tr><th>ULP</th>' + cols.map(c=>`<th>${c.label}</th>`).join('') +
-    '<th>Susut III-07 Bln</th><th>Susut III-07 Kom</th><th>Susut III.09 Bln</th><th>Susut III.09 Kom</th><th>Tanpa E-Min Bln</th></tr></thead>';
+    '<th>Susut Bulanan</th><th>Susut Kumulatif</th><th>Target</th><th>Tanpa E-Min Bln</th></tr></thead>';
   let tbody = '<tbody>';
   susutDetailUlps.forEach(u=>{
     const getRow = (b)=> susutDetailData.find(d=>d.ulp===u && d.bulan===b);
     const d = getRow(bulan);
-    if(!d){ tbody += `<tr><td>${u}</td>${cols.map(()=>'<td>-</td>').join('')}<td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>`; return; }
+    if(!d){ tbody += `<tr><td>${u}</td>${cols.map(()=>'<td>-</td>').join('')}<td>-</td><td>-</td><td>-</td><td>-</td></tr>`; return; }
     const jml = susutDetailJML(d);
-    const { susutBln, susut09Bln, tanpaEminBln } = susutDetailRatioBulanan(d);
-    const { susutKom, susut09Kom } = susutDetailRatioKumulatif(getRow, bulan);
+    const { susut09Bln, tanpaEminBln } = susutDetailRatioBulanan(d);
+    const { susut09Kom } = susutDetailRatioKumulatif(getRow, bulan);
+    const targetCell = d.target!=null ? `${d.target.toFixed(2)}%` : '-';
     tbody += `<tr><td>${u}</td>` + cols.map(c=>{
       const v = c.k==='jml' ? jml : d[c.k];
       return `<td>${Math.round(v).toLocaleString('id-ID')}</td>`;
     }).join('') +
-      `<td class="${susutDetailTierClass(susutBln)}">${susutBln.toFixed(2)}%</td>` +
-      `<td class="${susutDetailTierClass(susutKom)}">${susutKom.toFixed(2)}%</td>` +
       `<td class="${susutDetailTierClass(susut09Bln)}">${susut09Bln.toFixed(2)}%</td>` +
       `<td class="${susutDetailTierClass(susut09Kom)}">${susut09Kom.toFixed(2)}%</td>` +
+      `<td class="target-cell">${targetCell}</td>` +
       `<td class="${susutDetailTierClass(tanpaEminBln)}">${tanpaEminBln.toFixed(2)}%</td></tr>`;
   });
   const getRowUp3 = (b)=> susutDetailUp3ForBulan(b);
@@ -547,11 +557,13 @@ function susutDetailRenderBreakdown(){
     const jml3 = susutDetailJML(d3);
     const ratioBln3 = susutDetailRatioBulanan(d3);
     const { susutKom, susut09Kom } = susutDetailRatioKumulatif(getRowUp3, bulan);
+    const up3Target = susutDetailUp3Target[bulan];
+    const up3TargetCell = up3Target!=null ? `${up3Target.toFixed(2)}%` : '-';
     tbody += `<tr class="up3-row"><td>UP3 MADIUN</td>` + cols.map(c=>{
       const v = c.k==='jml' ? jml3 : d3[c.k];
       return `<td>${Math.round(v).toLocaleString('id-ID')}</td>`;
     }).join('') +
-      `<td>${ratioBln3.susutBln.toFixed(2)}%</td><td>${susutKom.toFixed(2)}%</td><td>${ratioBln3.susut09Bln.toFixed(2)}%</td><td>${susut09Kom.toFixed(2)}%</td><td>${ratioBln3.tanpaEminBln.toFixed(2)}%</td></tr>`;
+      `<td>${ratioBln3.susut09Bln.toFixed(2)}%</td><td>${susut09Kom.toFixed(2)}%</td><td>${up3TargetCell}</td><td>${ratioBln3.tanpaEminBln.toFixed(2)}%</td></tr>`;
 
     document.getElementById('susut_detail_kpi').innerHTML = `
       <div class="kpi-card"><div class="kpi-label">KWh produksi UP3 (${bulan})</div><div class="kpi-value">${(d3.kwhProduksi/1e6).toFixed(2)}</div><div class="kpi-sub">GWh</div></div>
