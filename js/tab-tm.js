@@ -3,8 +3,16 @@
   Sumber data: sheet "REKAP TM" (export apa adanya, header 3 baris berlapis).
   Karena headernya berlapis (bukan 1 baris nama kolom sederhana), tab ini TIDAK
   memakai parseCSV()/findKey() biasa (yang mendeteksi 1 baris header), melainkan
-  parseCSVRows() (tokenizer mentah) lalu ambil kolom berdasarkan POSISI tetap,
-  persis seperti pola "urutan posisi" yang sudah dipakai di tab P2TL.
+  tokenizer mentah sendiri (tmParseCSVRows) lalu ambil kolom berdasarkan POSISI
+  tetap, persis seperti pola "urutan posisi" yang sudah dipakai di tab P2TL.
+
+  CATATAN: fungsi tokenizer & fetch di bawah ini SENGAJA dibuat versi lokal
+  (tmParseCSVRows / tmFetchCSVRaw), bukan menambah fungsi baru di helpers.js.
+  Ini supaya file tab-tm.js ini berdiri sendiri dan tidak butuh helpers.js versi
+  baru — cukup upload file ini + tambahkan <script src="js/tab-tm.js"> di HTML,
+  tanpa perlu mengganti helpers.js yang sudah dipakai tab-tab lain. Fungsi
+  num()/setStatus()/showDash()/destroyChart()/charts tetap dipakai dari
+  helpers.js/main.js yang SUDAH ada (tidak berubah).
 
   Posisi kolom (0-based) hasil pemetaan header sheet sumber:
     0  NO
@@ -27,6 +35,34 @@
   Sesuai permintaan: bulan sebelum Mei (Des-Apr) & setelah Juli (Agt-Des) diabaikan
   karena datanya belum closed / masih #ERROR! di sheet sumber.
 */
+
+// ---- Tokenizer CSV mentah versi lokal tab ini (array-of-arrays, baris kosong
+// total dibuang), TANPA deteksi header — supaya kolom bisa diambil per posisi. ----
+function tmParseCSVRows(text){
+  const rowsRaw = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i], next = text[i+1];
+    if(inQuotes){
+      if(c === '"' && next === '"'){ field += '"'; i++; }
+      else if(c === '"'){ inQuotes = false; }
+      else { field += c; }
+    } else {
+      if(c === '"'){ inQuotes = true; }
+      else if(c === ','){ row.push(field); field=''; }
+      else if(c === '\r'){ /* skip */ }
+      else if(c === '\n'){ row.push(field); rowsRaw.push(row); row=[]; field=''; }
+      else { field += c; }
+    }
+  }
+  if(field.length || row.length){ row.push(field); rowsRaw.push(row); }
+  return rowsRaw.filter(r => r.some(c => String(c).trim() !== ''));
+}
+async function tmFetchCSVRaw(url){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  return tmParseCSVRows(await res.text());
+}
 
 const TM_COL = {
   IDPEL: 1, NAMA: 2, UNIT: 3, TARIF: 4, DAYA: 7,
@@ -196,7 +232,7 @@ async function tmLoad(){
   if(!url){ setStatus('tm_status', false, 'Masukkan link CSV terlebih dahulu.'); return; }
   try{
     setStatus('tm_status', true, 'Memuat data...');
-    const rows = await fetchCSVRaw(url);
+    const rows = await tmFetchCSVRaw(url);
     tmRender(rows);
   }catch(e){
     setStatus('tm_status', false, 'Gagal memuat data: ' + e.message);
@@ -220,6 +256,6 @@ NO,IDPEL,NAMA,UNITUP,TARIF,,, DAYA,,,,,,,,,,,,,,,,DES 2026,,,, JANUARI,,,, FEBRU
 function tmSample(){
   document.getElementById('tm_url').value = '';
   setStatus('tm_status', true, 'Menampilkan data contoh (bukan data live).');
-  const rows = parseCSVRows(TM_SAMPLE_CSV);
+  const rows = tmParseCSVRows(TM_SAMPLE_CSV);
   tmRender(rows);
 }
