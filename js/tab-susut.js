@@ -391,7 +391,7 @@ function susutDetailRatioBulanan(d){
 // penjumlahan UP3) untuk bulan tsb, atau null kalau tidak ada. Diakumulasi mengikuti
 // urutan susutDetailBulans (asumsi CSV sudah diurutkan dari bulan terlama ke terbaru).
 function susutDetailRatioKumulatif(getRowForBulan, uptoBulan){
-  let sumKP=0, sumNumSusut=0, sumNumSusut09=0;
+  let sumKP=0, sumNumSusut=0, sumNumSusut09=0, sumEmin=0;
   for(const b of susutDetailBulans){
     const d = getRowForBulan(b);
     if(d){
@@ -399,12 +399,14 @@ function susutDetailRatioKumulatif(getRowForBulan, uptoBulan){
       sumKP += kp;
       sumNumSusut += (kp - d.pal);
       sumNumSusut09 += (kp - d.tul309 - d.pssd);
+      sumEmin += (d.emin || 0);
     }
     if(b === uptoBulan) break;
   }
   return {
     susutKom: sumKP ? sumNumSusut/sumKP*100 : 0,
-    susut09Kom: sumKP ? sumNumSusut09/sumKP*100 : 0
+    susut09Kom: sumKP ? sumNumSusut09/sumKP*100 : 0,
+    tanpaEminKom: sumKP ? (sumNumSusut09 + sumEmin)/sumKP*100 : 0
   };
 }
 function susutDetailTierClass(v){
@@ -532,38 +534,37 @@ function susutDetailRenderBreakdown(){
     {k:'tul309', label:'TUL III-09'}, {k:'kwhProduksi', label:'KWh Produksi'}
   ];
   let thead = '<thead><tr><th>ULP</th>' + cols.map(c=>`<th>${c.label}</th>`).join('') +
-    '<th>Susut Bulanan</th><th>Susut Kumulatif</th><th>Target</th><th>Tanpa E-Min Bln</th></tr></thead>';
+    '<th>Susut Bulanan</th><th>Susut Kumulatif</th><th>Target</th></tr></thead>';
   let tbody = '<tbody>';
   susutDetailUlps.forEach(u=>{
     const getRow = (b)=> susutDetailData.find(d=>d.ulp===u && d.bulan===b);
     const d = getRow(bulan);
-    if(!d){ tbody += `<tr><td>${u}</td>${cols.map(()=>'<td>-</td>').join('')}<td>-</td><td>-</td><td>-</td><td>-</td></tr>`; return; }
+    if(!d){ tbody += `<tr><td>${u}</td>${cols.map(()=>'<td>-</td>').join('')}<td>-</td><td>-</td><td>-</td></tr>`; return; }
     const jml = susutDetailJML(d);
-    const { susut09Bln, tanpaEminBln } = susutDetailRatioBulanan(d);
-    const { susut09Kom } = susutDetailRatioKumulatif(getRow, bulan);
+    const { tanpaEminBln } = susutDetailRatioBulanan(d);
+    const { tanpaEminKom } = susutDetailRatioKumulatif(getRow, bulan);
     const targetCell = d.target!=null ? `${d.target.toFixed(2)}%` : '-';
     tbody += `<tr><td>${u}</td>` + cols.map(c=>{
       const v = c.k==='jml' ? jml : d[c.k];
       return `<td>${Math.round(v).toLocaleString('id-ID')}</td>`;
     }).join('') +
-      `<td class="${susutDetailTierClass(susut09Bln)}">${susut09Bln.toFixed(2)}%</td>` +
-      `<td class="${susutDetailTierClass(susut09Kom)}">${susut09Kom.toFixed(2)}%</td>` +
-      `<td class="target-cell">${targetCell}</td>` +
-      `<td class="${susutDetailTierClass(tanpaEminBln)}">${tanpaEminBln.toFixed(2)}%</td></tr>`;
+      `<td class="${susutDetailTierClass(tanpaEminBln)}">${tanpaEminBln.toFixed(2)}%</td>` +
+      `<td class="${susutDetailTierClass(tanpaEminKom)}">${tanpaEminKom.toFixed(2)}%</td>` +
+      `<td class="target-cell">${targetCell}</td></tr>`;
   });
   const getRowUp3 = (b)=> susutDetailUp3ForBulan(b);
   const d3 = getRowUp3(bulan);
   if(d3){
     const jml3 = susutDetailJML(d3);
     const ratioBln3 = susutDetailRatioBulanan(d3);
-    const { susutKom, susut09Kom } = susutDetailRatioKumulatif(getRowUp3, bulan);
+    const { susutKom, susut09Kom, tanpaEminKom } = susutDetailRatioKumulatif(getRowUp3, bulan);
     const up3Target = susutDetailUp3Target[bulan];
     const up3TargetCell = up3Target!=null ? `${up3Target.toFixed(2)}%` : '-';
     tbody += `<tr class="up3-row"><td>UP3 MADIUN</td>` + cols.map(c=>{
       const v = c.k==='jml' ? jml3 : d3[c.k];
       return `<td>${Math.round(v).toLocaleString('id-ID')}</td>`;
     }).join('') +
-      `<td>${ratioBln3.susut09Bln.toFixed(2)}%</td><td>${susut09Kom.toFixed(2)}%</td><td>${up3TargetCell}</td><td>${ratioBln3.tanpaEminBln.toFixed(2)}%</td></tr>`;
+      `<td>${ratioBln3.tanpaEminBln.toFixed(2)}%</td><td>${tanpaEminKom.toFixed(2)}%</td><td>${up3TargetCell}</td></tr>`;
 
     document.getElementById('susut_detail_kpi').innerHTML = `
       <div class="kpi-card"><div class="kpi-label">KWh produksi UP3 (${bulan})</div><div class="kpi-value">${(d3.kwhProduksi/1e6).toFixed(2)}</div><div class="kpi-sub">GWh</div></div>

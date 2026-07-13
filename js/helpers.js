@@ -63,6 +63,14 @@ function findKeyPriority(obj, candidateGroups){
 // Sebelumnya num() cuma replace(',', '.') tanpa membuang titik ribuan, sehingga angka
 // besar seperti "148.629.313,00" (dari CSV sheet) salah terbaca jadi 148.629 saja.
 function num(v){
+  // Kalau input sudah berupa angka JS (bukan string dari CSV), langsung pakai apa
+  // adanya. Ini WAJIB ada: kalau dilewatkan ke heuristik string di bawah, angka yang
+  // kebetulan punya persis 3 digit desimal (mis. 8.857 hasil parse sebelumnya) akan
+  // salah dikira "8.857" ala format ribuan Indonesia dan berubah jadi 8857. Bug ini
+  // yang menyebabkan kolom TARGET di tabel Susut per ULP salah besar 1000x untuk
+  // sebagian ULP (NGAWI, MAOSPATI, CARUBAN, DOLOPO, MANTINGAN, UP3 MADIUN) sementara
+  // yang desimalnya cuma 2 digit (MADIUN KOTA, MAGETAN) kebetulan tetap tampil benar.
+  if(typeof v === 'number') return isNaN(v) ? 0 : v;
   let s = String(v==null ? '' : v).trim();
   if(s === '') return 0;
   // buang karakter selain digit/titik/koma/minus (mis. "Rp", spasi, %)
