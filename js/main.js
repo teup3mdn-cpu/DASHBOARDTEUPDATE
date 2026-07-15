@@ -11,7 +11,6 @@ const AUTO_TABS = [
   { urlId:'p2tl_ulp_url', loadFn:()=>p2tlUlpLoad() },
   { urlId:'gm_url',    loadFn:()=>gmLoad() },
   { urlId:'prog_url',  loadFn:()=>progLoad() },
-  { urlId:'tm_url',    loadFn:()=>tmLoad() },
 ];
 
 function getSavedLinks(){
@@ -82,6 +81,21 @@ function refreshBadge(msg){
    tampilan dashboard bersih. Tombol ⚙ di header dipakai untuk membuka lagi kalau perlu
    mengganti link sumber. Kotak input manual (regu, TS, biaya, dsb) TIDAK ikut disembunyikan
    karena itu memang harus diisi/diubah manual tiap periode, bukan bagian dari "muat data". */
+/* ---- Toggle iframe "Dashboard Live P2TL" di tab Evaluasi P2TL ----
+   Iframe baru dimuat (src baru diisi) saat pertama kali dibuka, bukan langsung saat
+   halaman utama load, supaya tidak membebani dashboard utama kalau section ini tidak dipakai. */
+function p2tlLiveToggle(){
+  const sec = document.getElementById('p2tl_live_section');
+  const btn = document.getElementById('p2tlLiveToggleBtn');
+  const shouldShow = sec.style.display === 'none';
+  sec.style.display = shouldShow ? 'block' : 'none';
+  btn.textContent = shouldShow ? '✕ Tutup Dashboard Live P2TL' : '🔴 Buka Dashboard Live P2TL (Realisasi KWH per unit)';
+  if(shouldShow){
+    const frame = document.getElementById('p2tl_live_iframe');
+    if(frame && !frame.dataset.loaded){ frame.src = 'p2tl-live.html'; frame.dataset.loaded = '1'; }
+  }
+}
+
 function toggleConfigVisibility(force){
   const shouldHide = force !== undefined ? force : !document.body.classList.contains('hide-config');
   document.body.classList.toggle('hide-config', shouldHide);
