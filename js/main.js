@@ -11,6 +11,7 @@ const AUTO_TABS = [
   { urlId:'p2tl_ulp_url', loadFn:()=>p2tlUlpLoad() },
   { urlId:'gm_url',    loadFn:()=>gmLoad() },
   { urlId:'prog_url',  loadFn:()=>progLoad() },
+  { urlId:'periksa_url', loadFn:()=>periksaLoad() },
 ];
 
 function getSavedLinks(){
