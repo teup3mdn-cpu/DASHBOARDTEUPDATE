@@ -121,17 +121,43 @@ function periksaRender(text){
       `<td style="font-size:11px;">${PERIKSA_KATEGORI.filter(k=>s.kat[k]).map(k=>`${k}:${s.kat[k]}`).join(', ') || '-'}</td></tr>`;
   }).join('');
 
-  /* ---- 3. Clock-in / clock-out per REGU per hari (kolom V = WAKTU_PERIKSA) ---- */
+  /* ---- 3. Clock-in / clock-out per REGU per hari (kolom V = WAKTU_PERIKSA) ----
+     Ditampilkan sebagai tabel PIVOT: satu baris per REGU, kolom TANGGAL bergeser
+     ke kanan (scroll horizontal), dan tiap tanggal punya 2 sub-kolom: In / Out. */
   const withWaktu = data.filter(d=>d.waktu && !isNaN(d.waktu));
   const dayKey = (d)=> d.waktu.toISOString().slice(0,10);
-  const groupKeys = [...new Set(withWaktu.map(d=> d.regu + '|' + dayKey(d)))].sort();
-  document.getElementById('periksa_table_clock').innerHTML = groupKeys.map(key=>{
-    const [regu, tgl] = key.split('|');
-    const rows = withWaktu.filter(d=> d.regu===regu && dayKey(d)===tgl).sort((a,b)=>a.waktu-b.waktu);
-    const clockIn = rows[0].waktu, clockOut = rows[rows.length-1].waktu;
-    const fmt = (dt)=> dt.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
-    return `<tr><td style="font-weight:700;">${periksaReguLabel(regu)}</td><td>${tgl}</td><td>${fmt(clockIn)}</td><td>${fmt(clockOut)}</td><td>${rows.length}</td></tr>`;
-  }).join('');
+  const fmtJam = (dt)=> dt.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+
+  const clockDates = [...new Set(withWaktu.map(d=>dayKey(d)))].sort();
+  const clockRegus = [...new Set(withWaktu.map(d=>d.regu))].sort((a,b)=> periksaReguLabel(a).localeCompare(periksaReguLabel(b)));
+
+  const clockMap = {};
+  clockRegus.forEach(regu=>{
+    clockMap[regu] = {};
+    clockDates.forEach(tgl=>{
+      const rows = withWaktu.filter(d=> d.regu===regu && dayKey(d)===tgl).sort((a,b)=>a.waktu-b.waktu);
+      if(rows.length) clockMap[regu][tgl] = { in: fmtJam(rows[0].waktu), out: fmtJam(rows[rows.length-1].waktu) };
+    });
+  });
+
+  const clockThead = '<thead>' +
+      '<tr><th rowspan="2" style="vertical-align:middle;position:sticky;left:0;background:#0d2a4a;color:#fff;">Regu</th>' +
+        clockDates.map(tgl=>`<th colspan="2" style="text-align:center;">${tgl}</th>`).join('') +
+      '</tr>' +
+      '<tr>' + clockDates.map(()=>'<th style="text-align:center;">In</th><th style="text-align:center;">Out</th>').join('') + '</tr>' +
+    '</thead>';
+
+  const clockTbody = '<tbody>' + clockRegus.map(regu=>{
+    const cells = clockDates.map(tgl=>{
+      const c = clockMap[regu][tgl];
+      return c
+        ? `<td style="text-align:center;">${c.in}</td><td style="text-align:center;">${c.out}</td>`
+        : `<td style="text-align:center;color:#c7ccd4;">-</td><td style="text-align:center;color:#c7ccd4;">-</td>`;
+    }).join('');
+    return `<tr><td style="font-weight:700;white-space:nowrap;position:sticky;left:0;background:#fff;">${periksaReguLabel(regu)}</td>${cells}</tr>`;
+  }).join('') + '</tbody>';
+
+  document.getElementById('periksa_clock_table').innerHTML = clockThead + clockTbody;
 
   /* ---- 4. Rata-rata durasi pemeriksaan per pelanggan per REGU ---- */
   document.getElementById('periksa_table_durasi').innerHTML = regus.map(regu=>{
