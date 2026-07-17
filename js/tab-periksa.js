@@ -136,7 +136,14 @@ function periksaRender(text){
     clockMap[regu] = {};
     clockDates.forEach(tgl=>{
       const rows = withWaktu.filter(d=> d.regu===regu && dayKey(d)===tgl).sort((a,b)=>a.waktu-b.waktu);
-      if(rows.length) clockMap[regu][tgl] = { in: fmtJam(rows[0].waktu), out: fmtJam(rows[rows.length-1].waktu) };
+      if(rows.length){
+        const first = rows[0].waktu, last = rows[rows.length-1].waktu;
+        clockMap[regu][tgl] = {
+          in: fmtJam(first), out: fmtJam(last),
+          inMin: first.getHours()*60 + first.getMinutes(),
+          outMin: last.getHours()*60 + last.getMinutes()
+        };
+      }
     });
   });
 
@@ -158,6 +165,39 @@ function periksaRender(text){
   }).join('') + '</tbody>';
 
   document.getElementById('periksa_clock_table').innerHTML = clockThead + clockTbody;
+
+  /* ---- Highlight: regu paling awal/telat masuk & paling awal/akhir pulang ----
+     Dihitung dari rata-rata jam masuk (inMin) & jam pulang (outMin) per regu
+     across semua hari yang ada datanya, lalu diambil nilai ekstremnya. */
+  const minToTime = (min)=>{
+    const h = Math.floor(min/60), m = Math.round(min%60);
+    return String(h).padStart(2,'0') + '.' + String(m).padStart(2,'0');
+  };
+  const reguAvg = clockRegus.map(regu=>{
+    const days = clockDates.filter(tgl=> clockMap[regu][tgl]);
+    const insMin = days.map(tgl=> clockMap[regu][tgl].inMin);
+    const outsMin = days.map(tgl=> clockMap[regu][tgl].outMin);
+    return {
+      regu,
+      avgIn: insMin.reduce((a,b)=>a+b,0)/insMin.length,
+      avgOut: outsMin.reduce((a,b)=>a+b,0)/outsMin.length
+    };
+  });
+
+  if(reguAvg.length){
+    const palingAwalMasuk = reguAvg.reduce((a,b)=> b.avgIn < a.avgIn ? b : a);
+    const palingTelatMasuk = reguAvg.reduce((a,b)=> b.avgIn > a.avgIn ? b : a);
+    const palingAkhirPulang = reguAvg.reduce((a,b)=> b.avgOut > a.avgOut ? b : a);
+    const palingAwalPulang = reguAvg.reduce((a,b)=> b.avgOut < a.avgOut ? b : a);
+
+    document.getElementById('periksa_top_highlight').innerHTML = `
+      <div class="icon-kpi"><div class="circle green">🌅</div><div><div class="ik-label">Regu paling awal masuk (rata-rata)</div><div class="ik-value" style="font-size:15px;">${periksaReguLabel(palingAwalMasuk.regu)}</div><div class="ik-sub">${minToTime(palingAwalMasuk.avgIn)}</div></div></div>
+      <div class="icon-kpi"><div class="circle red">⏰</div><div><div class="ik-label">Regu paling telat masuk (rata-rata)</div><div class="ik-value" style="font-size:15px;">${periksaReguLabel(palingTelatMasuk.regu)}</div><div class="ik-sub">${minToTime(palingTelatMasuk.avgIn)}</div></div></div>
+      <div class="icon-kpi"><div class="circle navy">🌙</div><div><div class="ik-label">Regu paling akhir pulang (rata-rata)</div><div class="ik-value" style="font-size:15px;">${periksaReguLabel(palingAkhirPulang.regu)}</div><div class="ik-sub">${minToTime(palingAkhirPulang.avgOut)}</div></div></div>
+      <div class="icon-kpi"><div class="circle amber">🏃</div><div><div class="ik-label">Regu paling awal pulang (rata-rata)</div><div class="ik-value" style="font-size:15px;">${periksaReguLabel(palingAwalPulang.regu)}</div><div class="ik-sub">${minToTime(palingAwalPulang.avgOut)}</div></div></div>`;
+  } else {
+    document.getElementById('periksa_top_highlight').innerHTML = '';
+  }
 
   /* ---- 4. Rata-rata durasi pemeriksaan per pelanggan per REGU ---- */
   document.getElementById('periksa_table_durasi').innerHTML = regus.map(regu=>{
