@@ -32,6 +32,7 @@
   <button class="tab-btn active" data-tab="susut">Susut per ULP</button>
   <button class="tab-btn" data-tab="kwhjual">Evaluasi kWh jual</button>
   <button class="tab-btn" data-tab="p2tl">Evaluasi P2TL</button>
+  <button class="tab-btn" data-tab="periksa">Realisasi Pemeriksaan P2TL</button>
   <button class="tab-btn" data-tab="gantimeter">Ganti meter & amrisasi</button>
   <button class="tab-btn" data-tab="prognosa">Prognosa susut</button>
 </div>
@@ -68,17 +69,6 @@
       </div>
       <div id="susut_detail_dash" style="display:none;">
         <div class="kpi-row" id="susut_detail_kpi"></div>
-        <div class="panel" style="margin-top:4px;">
-          <div class="panel-head">Susut III.09 kumulatif (%) per ULP per bulan — UP3 MADIUN = penjumlahan ULP</div>
-          <div class="panel-body" style="padding:0;overflow-x:auto;">
-            <table id="susut_detail_matrix" style="font-size:11.5px;"></table>
-            <div class="legend" style="padding:8px 14px;">
-              <b style="color:#57c26b;">&#9632;</b> tercapai baik (&le;8%) &nbsp;
-              <b style="color:#ffe066;">&#9632;</b> waspada (8%&ndash;10%) &nbsp;
-              <b style="color:#e34848;">&#9632;</b> perlu perhatian (&gt;10%)
-            </div>
-          </div>
-        </div>
         <div class="panel" style="margin-top:14px;">
           <div class="panel-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
             <span>Rincian komponen kWh per ULP</span>
@@ -250,22 +240,6 @@
         <div class="exec-banner-period" id="p2tl_period">PERIODE JANUARI &ndash; MEI 2026</div>
       </div>
     </div>
-
-    <div style="margin:0 0 16px;">
-      <button id="p2tlLiveToggleBtn" class="secondary" onclick="p2tlLiveToggle()" style="padding:9px 14px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--navy2);font-size:12.5px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">🔴 Buka Dashboard Live P2TL (Realisasi KWH per unit)</button>
-    </div>
-    <div id="p2tl_live_section" style="display:none;margin-bottom:18px;">
-      <div class="panel">
-        <div class="panel-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-          <span>Dashboard Live P2TL &mdash; Realisasi KWH (link CSV &amp; tampilan diatur terpisah di dalam dashboard ini)</span>
-          <a href="p2tl-live.html" target="_blank" rel="noopener" style="color:#ffcc00;font-size:11.5px;font-weight:700;text-decoration:none;">↗ Buka layar penuh</a>
-        </div>
-        <div class="panel-body" style="padding:0;">
-          <iframe id="p2tl_live_iframe" title="Dashboard Live P2TL" style="width:100%;height:1400px;border:none;display:block;background:#f8fafc;" loading="lazy"></iframe>
-        </div>
-      </div>
-    </div>
-
     <div class="exec-layout">
       <div class="exec-side">
         <div class="exec-side-title">RINGKASAN UTAMA</div>
@@ -319,6 +293,53 @@
     </div>
   </div>
   <div class="empty" id="p2tl_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
+</div>
+
+<!-- ================= TAB: REALISASI PEMERIKSAAN PELANGGAN (P2TL) ================= -->
+<div class="tab-panel" id="tab-periksa">
+  <div class="config">
+    <input id="periksa_url" type="text" placeholder="Link CSV export mentah 'Realisasi P2TL' (delimiter titik-koma, apa adanya)" />
+    <button onclick="periksaLoad()">Muat data</button>
+    <button class="secondary" onclick="periksaSample()">Lihat contoh</button>
+    <div class="hint">Link CSV export langsung dari file <b>Realisasi_P2TL.xlsx</b> (delimiter <b>;</b>, header 1 baris, apa adanya — jangan diringkas dulu). Kolom yang dibaca: <b>IDPEL, DAYA, UPDATE_STATUS, KWH_TS, WAKTU_PERIKSA (kolom V), REGU, DURASI_PERIKSA</b>.</div>
+    <div class="status" id="periksa_status"></div>
+  </div>
+  <div id="periksa_dash" style="display:none;">
+    <div class="header-banner-light">
+      <h2>REALISASI PEMERIKSAAN PELANGGAN (P2TL)</h2>
+      <div class="sub">Rekap hasil pemeriksaan per regu, per daya, jam kerja, dan durasi pemeriksaan</div>
+    </div>
+    <div class="icon-kpi-row" id="periksa_kpi"></div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">1. Realisasi Pemeriksaan per Regu</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table><thead><tr><th>Regu</th><th>Jumlah Diperiksa</th><th>Normal</th><th>K1</th><th>K2</th><th>K3</th><th>K4</th><th>P1</th><th>P2</th><th>P3</th><th>P4</th><th>Total kWh TS</th></tr></thead><tbody id="periksa_table_regu"></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">2. Realisasi Pemeriksaan per Daya</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table><thead><tr><th>Daya</th><th>Jumlah Diperiksa</th><th>Normal</th><th>Tidak Normal</th><th>Total kWh TS</th><th>Kategori Pelanggaran</th></tr></thead><tbody id="periksa_table_daya"></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">3. Clock-in / Clock-out per Regu per Hari (kolom V — WAKTU_PERIKSA)</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;max-height:420px;overflow-y:auto;">
+        <table><thead><tr><th>Regu</th><th>Tanggal</th><th>Clock In</th><th>Clock Out</th><th>Jumlah Pemeriksaan</th></tr></thead><tbody id="periksa_table_clock"></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">4. Rata-rata Waktu Pemeriksaan per Pelanggan per Regu</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table><thead><tr><th>Regu</th><th>Jumlah Diperiksa</th><th>Rata-rata Durasi</th><th>Median Durasi</th></tr></thead><tbody id="periksa_table_durasi"></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="empty" id="periksa_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
 </div>
 
 <!-- ================= TAB 5: GANTI METER & AMRISASI ================= -->
@@ -575,6 +596,7 @@
 <script src="js/tab-susut.js"></script>
 <script src="js/tab-kwhjual.js"></script>
 <script src="js/tab-p2tl.js"></script>
+<script src="js/tab-periksa.js"></script>
 <script src="js/tab-gantimeter.js"></script>
 <script src="js/tab-prognosa.js"></script>
 <script src="js/main.js"></script>
