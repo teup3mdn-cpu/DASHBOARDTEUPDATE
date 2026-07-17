@@ -240,6 +240,22 @@
         <div class="exec-banner-period" id="p2tl_period">PERIODE JANUARI &ndash; MEI 2026</div>
       </div>
     </div>
+
+    <div style="margin:0 0 16px;">
+      <button id="p2tlLiveToggleBtn" class="secondary" onclick="p2tlLiveToggle()" style="padding:9px 14px;border:1px solid var(--border);border-radius:7px;background:#fff;color:var(--navy2);font-size:12.5px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;">🔴 Buka Dashboard Live P2TL (Realisasi KWH per unit)</button>
+    </div>
+    <div id="p2tl_live_section" style="display:none;margin-bottom:18px;">
+      <div class="panel">
+        <div class="panel-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+          <span>Dashboard Live P2TL &mdash; Realisasi KWH (link CSV &amp; tampilan diatur terpisah di dalam dashboard ini)</span>
+          <a href="p2tl-live.html" target="_blank" rel="noopener" style="color:#ffcc00;font-size:11.5px;font-weight:700;text-decoration:none;">↗ Buka layar penuh</a>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <iframe id="p2tl_live_iframe" title="Dashboard Live P2TL" style="width:100%;height:1400px;border:none;display:block;background:#f8fafc;" loading="lazy"></iframe>
+        </div>
+      </div>
+    </div>
+
     <div class="exec-layout">
       <div class="exec-side">
         <div class="exec-side-title">RINGKASAN UTAMA</div>
