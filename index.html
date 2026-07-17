@@ -34,6 +34,7 @@
   <button class="tab-btn" data-tab="p2tl">Evaluasi P2TL</button>
   <button class="tab-btn" data-tab="gantimeter">Ganti meter & amrisasi</button>
   <button class="tab-btn" data-tab="prognosa">Prognosa susut</button>
+  <button class="tab-btn" data-tab="periksa">Realisasi Pemeriksaan P2TL</button>
 </div>
 
 
@@ -570,6 +571,58 @@
   <div class="empty" id="prog_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
 </div>
 
+<div class="tab-panel" id="tab-periksa">
+  <div class="config">
+    <input id="periksa_url" type="text" placeholder="Link CSV export mentah 'Realisasi P2TL' (delimiter titik-koma, apa adanya)" />
+    <button onclick="periksaLoad()">Muat data</button>
+    <button class="secondary" onclick="periksaSample()">Lihat contoh</button>
+    <div class="hint">Sumber: export CSV mentah "Realisasi_P2TL.xlsx" dari sistem P2TL (delimiter titik-koma <b>;</b>, 158 kolom). Masukkan link <b>apa adanya</b>, tidak perlu dirapikan/diubah dulu — parser sudah menyesuaikan struktur kolom sheet sumber.</div>
+    <div class="status" id="periksa_status"></div>
+  </div>
+
+  <div class="exec-banner">
+    <div class="exec-banner-logo">⚡<span>PLN<br><small>UP3 MADIUN</small></span></div>
+    <div class="exec-banner-title">
+      <h2>REALISASI PEMERIKSAAN PELANGGAN (P2TL)</h2>
+      <div class="exec-banner-period">DATA REAL-TIME DARI SISTEM P2TL</div>
+    </div>
+  </div>
+
+  <div id="periksa_dash" style="display:none;">
+    <div class="icon-kpi-row" id="periksa_kpi"></div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Realisasi per Regu</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table><thead><tr><th>Regu</th><th>Jumlah Diperiksa</th><th>Normal</th><th>K1</th><th>K2</th><th>K3</th><th>K4</th><th>P1</th><th>P2</th><th>P3</th><th>P4</th><th>Total kWh TS</th></tr></thead><tbody id="periksa_table_regu"></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Realisasi per Daya</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table><thead><tr><th>Daya</th><th>Jumlah Diperiksa</th><th>Normal</th><th>Tidak Normal</th><th>Total kWh TS</th><th>Kategori Pelanggaran</th></tr></thead><tbody id="periksa_table_daya"></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Clock-in / Clock-out per Regu per Hari (kolom WAKTU_PERIKSA)</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table><thead><tr><th>Regu</th><th>Tanggal</th><th>Clock In</th><th>Clock Out</th><th>Jumlah Pemeriksaan</th></tr></thead><tbody id="periksa_table_clock"></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Rata-rata Durasi Pemeriksaan per Regu</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table><thead><tr><th>Regu</th><th>Jumlah Diperiksa</th><th>Rata-rata Durasi</th><th>Median Durasi</th></tr></thead><tbody id="periksa_table_durasi"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="empty" id="periksa_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
+</div>
+
 
 <script src="js/helpers.js"></script>
 <script src="js/tab-susut.js"></script>
@@ -577,6 +630,7 @@
 <script src="js/tab-p2tl.js"></script>
 <script src="js/tab-gantimeter.js"></script>
 <script src="js/tab-prognosa.js"></script>
+<script src="js/tab-periksa.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
