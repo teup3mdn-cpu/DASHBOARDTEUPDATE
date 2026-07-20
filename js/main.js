@@ -12,6 +12,7 @@ const AUTO_TABS = [
   { urlId:'gm_url',    loadFn:()=>gmLoad() },
   { urlId:'prog_url',  loadFn:()=>progLoad() },
   { urlId:'periksa_url', loadFn:()=>periksaLoad() },
+  { urlId:'tm_url',    loadFn:()=>tmLoad() },
 ];
 
 function getSavedLinks(){

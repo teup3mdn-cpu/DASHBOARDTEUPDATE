@@ -35,6 +35,7 @@
   <button class="tab-btn" data-tab="gantimeter">Ganti meter & amrisasi</button>
   <button class="tab-btn" data-tab="prognosa">Prognosa susut</button>
   <button class="tab-btn" data-tab="periksa">Realisasi Pemeriksaan P2TL</button>
+  <button class="tab-btn" data-tab="tm">Monitoring Pelanggan TM</button>
 </div>
 
 
@@ -624,6 +625,71 @@
   <div class="empty" id="periksa_empty">Masukkan link CSV atau klik "Lihat contoh".</div>
 </div>
 
+<!-- ================= TAB: MONITORING PELANGGAN TM ================= -->
+<div class="tab-panel" id="tab-tm">
+  <style>
+    .tm-kpi-card{background:#fff;border-radius:12px;padding:15px 17px;box-shadow:var(--shadow-sm,0 1px 3px rgba(0,0,0,.08));}
+    .tm-kpi-label{font-size:12px;color:var(--muted,#6b7785);font-weight:600;margin-bottom:4px;}
+    .tm-kpi-value{font-size:22px;font-weight:800;color:#0d2a4a;}
+    .tm-kpi-sub{font-size:11.5px;color:var(--muted,#6b7785);margin-top:3px;}
+    .tm-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11.5px;font-weight:700;}
+    .tm-badge.down{background:#fdeaea;color:#c23b3b;}
+    .tm-badge.up{background:#e8f6ed;color:#1c8a4a;}
+    .tm-badge.flat{background:#eef1f4;color:#6b7785;}
+    .tm-rank-no{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#0d2a4a;color:#fff;font-size:11px;font-weight:700;}
+    .tm-name-cell{max-width:220px;white-space:normal;}
+  </style>
+  <div class="config">
+    <input id="tm_url" type="text" placeholder="Link CSV REKAP TM (export langsung dari sheet REKAP TM)" />
+    <button onclick="tmLoad()">Muat data</button>
+    <button class="secondary" onclick="tmSample()">Lihat contoh</button>
+    <div class="hint">Link CSV export langsung dari sheet <b>REKAP TM</b> (format apa adanya, header berlapis). Hanya data bulan <b>MEI, JUNI, JULI</b> yang dipakai — bulan lain diabaikan karena datanya belum terisi. Kolom yang dibaca: IDPEL, NAMA, TARIF, DAYA, PEMKWH per bulan.</div>
+    <div class="status" id="tm_status"></div>
+  </div>
+  <div id="tm_dash" style="display:none;">
+    <div class="header-banner-light">
+      <h2>MONITORING PELANGGAN TM</h2>
+      <div class="sub">Perbandingan pemakaian JUNI → JULI 2026</div>
+    </div>
+    <div class="icon-kpi-row" id="tm_kpi"></div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">10 Pelanggan TM dengan Penurunan kWh Terbesar (JUNI → JULI)</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table id="tm_table_turun_kwh"><thead><tr><th>No</th><th>Nama</th><th>IDPEL</th><th>Unit</th><th>Tarif</th><th>Daya (VA)</th><th>kWh Mei</th><th>kWh Juni</th><th>kWh Juli</th><th>Selisih</th><th>%</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">10 Pelanggan TM dengan Penurunan Persentase Terbesar (JUNI → JULI)</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table id="tm_table_turun_persen"><thead><tr><th>No</th><th>Nama</th><th>IDPEL</th><th>Unit</th><th>Tarif</th><th>Daya (VA)</th><th>kWh Mei</th><th>kWh Juni</th><th>kWh Juli</th><th>Selisih</th><th>%</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">10 Pelanggan TM dengan kWh Jual Tertinggi (JULI)</div>
+      <div class="panel-body" style="padding:0;overflow-x:auto;">
+        <table id="tm_table_top_kwh"><thead><tr><th>No</th><th>Nama</th><th>IDPEL</th><th>Unit</th><th>Tarif</th><th>Daya (VA)</th><th>kWh Mei</th><th>kWh Juni</th><th>kWh Juli</th><th>Growth</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Pemakaian Pelanggan TM per Tarif (MEI–JULI)</div>
+      <div class="panel-body">
+        <div class="chart-wrap"><canvas id="tm_tarif_chart"></canvas></div>
+        <div class="chart-caption" id="tm_tarif_caption" style="padding:8px 14px;font-size:12.5px;color:var(--muted,#6b7785);"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-head">Insight</div>
+      <div class="panel-body" id="tm_insight" style="font-size:13px;line-height:1.9;"></div>
+    </div>
+  </div>
+  <div class="empty" id="tm_empty">Masukkan link CSV REKAP TM atau klik "Lihat contoh".</div>
+</div>
+
 
 <script src="js/helpers.js"></script>
 <script src="js/tab-susut.js"></script>
@@ -632,6 +698,7 @@
 <script src="js/tab-gantimeter.js"></script>
 <script src="js/tab-prognosa.js"></script>
 <script src="js/tab-periksa.js"></script>
+<script src="js/tab-tm.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
