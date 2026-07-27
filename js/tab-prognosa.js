@@ -36,6 +36,61 @@ function progDaysInMonth(periodeStr){
   return new Date(p.year, p.month, 0).getDate();
 }
 
+/* ================= PARSER KHUSUS: raw export sheet "PROGNOSA SUSUT" ================
+   Sheet sumber ("kinerja_te_2026...") formatnya rumit: banyak header berlapis & ada
+   blok berulang per ULP (UP3 Madiun, lalu Madiun Kota, Magetan, dst berurutan ke bawah).
+   Kita HANYA ambil blok level UP3 (blok pertama yang judulnya mengandung "UP3"), baris
+   demi baris, dengan kolom diambil berdasarkan POSISI (bukan nama header, karena
+   headernya berlapis 2 baris dan banyak yang duplikat/kosong). Struktur kolom (0-based),
+   sesuai baris header "NO,BLN,PAL,P2TL,PESTA,Lain2/Suplisi,TAL-TUL,Restitusi,LPB,PSSD,
+   JML,E-MIN,TUL III-09,KWH PRODUK,...":
+     0  NO
+     1  BLN        (nama bulan, mis. "JANUARI")
+     2  PAL        -> dipetakan sebagai "Paskabayar" di dashboard
+     3  P2TL
+     8  LPB        -> dipetakan sebagai "Prabayar" di dashboard
+     13 KWH PRODUK -> dipetakan sebagai "KWh Produksi"
+   (Pemetaan PAL->Paskabayar & LPB->Prabayar sudah dicocokkan manual terhadap angka
+   Jual Total & Susut% yang seharusnya, dan hasilnya pas persis.)
+   Kalau kolom di sheet sumber berubah/digeser, index di atas harus disesuaikan ulang. */
+const PROG_MASTER_YEAR = 2026; // Judul sheet sumber "TH. 2024" itu cuma nama template lama; datanya untuk tahun ini. Update tiap ganti tahun.
+
+function progParseMasterSheet(text){
+  const rows = parseCSVRows(text);
+  const startIdx = rows.findIndex(r => r.some(c => /REALISASI SUSUT DISTRIBUSI/i.test(c) && /UP3/i.test(c)));
+  if(startIdx === -1) return [];
+
+  const out = [];
+  for(let i = startIdx + 1; i < rows.length; i++){
+    const r = rows[i];
+    const rowText = r.join('');
+    if(/REALISASI SUSUT DISTRIBUSI/i.test(rowText)){
+      if(out.length) break; // sudah masuk blok ULP berikutnya -> berhenti
+      continue;
+    }
+    const no = (r[0] || '').trim();
+    const bln = (r[1] || '').trim().toUpperCase();
+    const monthIdx = BULAN_ID_LONG.indexOf(bln);
+    if(!/^\d+$/.test(no) || monthIdx === -1) continue; // lewati baris header / "DESEMBER 2025" dsb.
+
+    const paskabayar = num(r[2]);  // kolom PAL
+    const p2tl = num(r[3]);        // kolom P2TL
+    const prabayar = num(r[8]);    // kolom LPB
+    const produksi = num(r[13]);   // kolom KWH PRODUK
+    if(!produksi) continue; // bulan yang belum ada realisasi (kolom masih kosong)
+
+    out.push({
+      Periode: `${PROG_MASTER_YEAR}-${String(monthIdx + 1).padStart(2,'0')}`,
+      Status: 'Realisasi',
+      KWh_Produksi: produksi,
+      KWh_Prabayar: prabayar,
+      KWh_Paskabayar: paskabayar,
+      KWh_P2TL: p2tl
+    });
+  }
+  return out;
+}
+
 function progRender(mainRows, checkpointRows){
   checkpointRows = checkpointRows || [];
   if(!mainRows || !mainRows[0]){ setStatus('prog_status', false, 'Data historis kosong.'); return; }
@@ -243,7 +298,13 @@ async function progLoad(){
   if(!url){ setStatus('prog_status', false, 'Masukkan link CSV data historis terlebih dahulu.'); return; }
   setStatus('prog_status', true, 'Memuat data...');
   try{
-    const mainRows = await fetchCSV(url);
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const rawText = await res.text();
+    // Deteksi otomatis: kalau raw text mengandung penanda judul sheet PROGNOSA mentah,
+    // pakai parser khusus (posisi kolom tetap). Kalau tidak, pakai parser CSV umum
+    // (header bersih: Periode, Status, KWh_Produksi, dst) seperti sebelumnya.
+    const mainRows = /REALISASI SUSUT DISTRIBUSI/i.test(rawText) ? progParseMasterSheet(rawText) : parseCSV(rawText);
     const checkpointRows = url2 ? await fetchCSV(url2) : [];
     progRender(mainRows, checkpointRows);
   } catch(e){ setStatus('prog_status', false, 'Gagal memuat: ' + e.message); }
