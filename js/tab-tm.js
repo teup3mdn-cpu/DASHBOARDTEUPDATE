@@ -21,19 +21,30 @@
     3  UNITUP
     4  TARIF
     7  DAYA
-    43-46  blok MEI   : RPTAG, PEMKWH, JN, FAKM
-    47-50  blok JUNI  : RPTAG, PEMKWH, JN, FAKM
-    51-54  blok JULI  : RPTAG, PEMKWH, JN, FAKM
-    75     SELISIH KWH (sudah dihitung sheet: JULI vs JUNI, ada suffix ▼/▲)
-    76     PERSEN NAIK/TURUN (idem, dalam %)
+    Blok PEMKWH per bulan (RPTAG, PEMKWH, JN, FAKM berulang tiap 4 kolom), posisi
+    kolom PEMKWH masing-masing bulan (0-based):
+      24 DES(tahun sebelumnya, baseline) 28 JANUARI  32 FEBRUARI  36 MARET
+      40 APRIL   44 MEI   48 JUNI   52 JULI   56 AGUSTUS   60 SEPTEMBER
+      64 OKTOBER 68 NOVEMBER 72 DESEMBER
+    75  SELISIH KWH (sudah dihitung sheet: bulan-ini vs bulan-lalu, ada suffix ▼/▲)
+    76  PERSEN NAIK/TURUN (idem, dalam %)
 
   Baris data pelanggan dikenali dengan aturan: kolom IDPEL (index 1) berisi
   angka murni. Ini otomatis membuang baris judul, baris sub-header, baris
   "GRAND TOTAL", dan baris kosong di ekor sheet, tanpa perlu menghitung jumlah
   baris header secara hardcode (lebih tahan kalau sheet sumber sedikit berubah).
 
-  Sesuai permintaan: bulan sebelum Mei (Des-Apr) & setelah Juli (Agt-Des) diabaikan
-  karena datanya belum closed / masih #ERROR! di sheet sumber.
+  ================= PENTING: DETEKSI BULAN OTOMATIS =================
+  Sebelumnya kode ini HARDCODE ke kolom Mei/Juni/Juli saja. Akibatnya begitu
+  bulan berjalan maju (mis. Agustus sudah di-input di sheet sumber), dashboard
+  tetap "mentok" nampilin Mei/Juni/Juli terus karena kolom Agustus memang tidak
+  pernah dilirik sama sekali oleh kode.
+  SEKARANG: kode ini otomatis MENDETEKSI 3 bulan TERAKHIR yang datanya sudah
+  closed (bukan '#ERROR!'/kosong) dari 12 blok bulan yang ada di sheet, lalu
+  memakai 3 bulan itu sebagai "bulan-2, bulan-1, bulan sekarang" — SAMA seperti
+  dulu (dulu itu otomatis jadi Mei/Juni/Juli karena cuma itu yang closed saat
+  file ini pertama dibuat). Jadi begitu Agustus closed & terisi, dashboard
+  OTOMATIS geser ke Juni/Juli/Agustus tanpa perlu edit kode lagi bulan depan.
 */
 
 // ---- Tokenizer CSV mentah versi lokal tab ini (array-of-arrays, baris kosong
@@ -64,11 +75,48 @@ async function tmFetchCSVRaw(url){
   return tmParseCSVRows(await res.text());
 }
 
-const TM_COL = {
-  IDPEL: 1, NAMA: 2, UNIT: 3, TARIF: 4, DAYA: 7,
-  MEI_PEMKWH: 44, JUNI_PEMKWH: 48, JULI_PEMKWH: 52,
-  SELISIH: 75, PERSEN: 76
-};
+const TM_COL = { IDPEL: 1, NAMA: 2, UNIT: 3, TARIF: 4, DAYA: 7, SELISIH: 75, PERSEN: 76 };
+
+// Daftar SEMUA blok bulan yang ada di sheet (posisi kolom PEMKWH masing-masing),
+// berurutan sesuai urutan kolom di sheet kiri ke kanan.
+const TM_MONTH_BLOCKS = [
+  { key:'des_awal',  label:'Desember (lalu)', col:24 },
+  { key:'jan',       label:'Januari',         col:28 },
+  { key:'feb',       label:'Februari',        col:32 },
+  { key:'mar',       label:'Maret',           col:36 },
+  { key:'apr',       label:'April',           col:40 },
+  { key:'mei',       label:'Mei',             col:44 },
+  { key:'jun',       label:'Juni',            col:48 },
+  { key:'jul',       label:'Juli',            col:52 },
+  { key:'agt',       label:'Agustus',         col:56 },
+  { key:'sep',       label:'September',       col:60 },
+  { key:'okt',       label:'Oktober',         col:64 },
+  { key:'nov',       label:'November',        col:68 },
+  { key:'des',       label:'Desember',        col:72 }
+];
+
+// Sebuah bulan dianggap "closed" (datanya sudah final, layak dipakai) kalau
+// MAYORITAS baris pelanggan punya nilai yang valid di kolom PEMKWH-nya (bukan
+// kosong & bukan '#ERROR!'). Dipakai MAYORITAS (bukan "semua harus terisi")
+// supaya tahan terhadap beberapa baris yang kebetulan pindah unit/idle.
+function tmIsClosed(dataRows, col){
+  if(!dataRows.length) return false;
+  let valid = 0;
+  dataRows.forEach(r=>{
+    const raw = String(r[col] !== undefined ? r[col] : '').trim();
+    if(raw && !/#ERROR/i.test(raw) && !/^-$/.test(raw)) valid++;
+  });
+  return (valid / dataRows.length) > 0.5;
+}
+
+// Cari 3 bulan TERAKHIR (paling kanan) yang closed. Return null kalau belum ada
+// 3 bulan closed yang layak.
+function tmDetectMonths(dataRows){
+  let lastClosedIdx = -1;
+  TM_MONTH_BLOCKS.forEach((m, idx) => { if(tmIsClosed(dataRows, m.col)) lastClosedIdx = idx; });
+  if(lastClosedIdx < 2) return null;
+  return [TM_MONTH_BLOCKS[lastClosedIdx-2], TM_MONTH_BLOCKS[lastClosedIdx-1], TM_MONTH_BLOCKS[lastClosedIdx]];
+}
 
 function tmParseTrend(raw){
   const s = String(raw == null ? '' : raw);
@@ -76,7 +124,8 @@ function tmParseTrend(raw){
   return { value: num(s), dir };
 }
 
-function tmParseRows(rawRows){
+// months = [bulan-2, bulan-1, bulan-sekarang] hasil tmDetectMonths()
+function tmParseRows(rawRows, months){
   return rawRows
     .filter(r => /^[0-9]+$/.test(String(r[TM_COL.IDPEL] || '').trim()))
     .map(r => {
@@ -87,18 +136,18 @@ function tmParseRows(rawRows){
         unit: String(g(TM_COL.UNIT)).trim(),
         tarif: String(g(TM_COL.TARIF)).trim(),
         daya: num(g(TM_COL.DAYA)),
-        mei: num(g(TM_COL.MEI_PEMKWH)),
-        juni: num(g(TM_COL.JUNI_PEMKWH)),
-        juli: num(g(TM_COL.JULI_PEMKWH))
+        m1: num(g(months[0].col)), // bulan-2 (mis. Juni)
+        m2: num(g(months[1].col)), // bulan-1 (mis. Juli)
+        m3: num(g(months[2].col))  // bulan sekarang (mis. Agustus)
       };
       row.selisih = tmParseTrend(g(TM_COL.SELISIH));
       row.persen = tmParseTrend(g(TM_COL.PERSEN));
       // fallback: kalau sheet tidak menyediakan kolom SELISIH/PERSEN yang valid
-      // (mis. link CSV custom tanpa kolom itu), hitung sendiri dari Juni->Juli.
-      if(!row.selisih.dir && (row.juni || row.juli)){
-        const diff = row.juni - row.juli;
+      // (mis. link CSV custom tanpa kolom itu), hitung sendiri dari bulan-1->sekarang.
+      if(!row.selisih.dir && (row.m2 || row.m3)){
+        const diff = row.m2 - row.m3;
         row.selisih = { value: Math.abs(diff), dir: diff > 0 ? 'turun' : (diff < 0 ? 'naik' : '') };
-        row.persen = { value: row.juni ? Math.abs(diff / row.juni * 100) : 0, dir: row.selisih.dir };
+        row.persen = { value: row.m2 ? Math.abs(diff / row.m2 * 100) : 0, dir: row.selisih.dir };
       }
       return row;
     })
@@ -122,7 +171,7 @@ function tmSelisihText(trend){
 function tmRankRow(i, r, mode){
   const nameCell = `<td class="tm-name-cell"><b>${r.nama}</b></td>`;
   if(mode === 'top'){
-    const growth = r.juni ? ((r.juli - r.juni) / r.juni * 100) : 0;
+    const growth = r.m2 ? ((r.m3 - r.m2) / r.m2 * 100) : 0;
     const growthBadge = growth >= 0
       ? `<span class="tm-badge up">&#9650; ${tmFmt1(growth)}%</span>`
       : `<span class="tm-badge down">&#9660; ${tmFmt1(Math.abs(growth))}%</span>`;
@@ -130,7 +179,7 @@ function tmRankRow(i, r, mode){
       <td><span class="tm-rank-no">${i+1}</span></td>
       ${nameCell}
       <td>${r.idpel}</td><td>${r.unit}</td><td>${r.tarif}</td><td>${tmFmt(r.daya)}</td>
-      <td>${tmFmt(r.mei)}</td><td>${tmFmt(r.juni)}</td><td><b>${tmFmt(r.juli)}</b></td>
+      <td>${tmFmt(r.m1)}</td><td>${tmFmt(r.m2)}</td><td><b>${tmFmt(r.m3)}</b></td>
       <td>${growthBadge}</td>
     </tr>`;
   }
@@ -138,7 +187,7 @@ function tmRankRow(i, r, mode){
     <td><span class="tm-rank-no">${i+1}</span></td>
     ${nameCell}
     <td>${r.idpel}</td><td>${r.unit}</td><td>${r.tarif}</td><td>${tmFmt(r.daya)}</td>
-    <td>${tmFmt(r.mei)}</td><td>${tmFmt(r.juni)}</td><td>${tmFmt(r.juli)}</td>
+    <td>${tmFmt(r.m1)}</td><td>${tmFmt(r.m2)}</td><td>${tmFmt(r.m3)}</td>
     <td>${tmSelisihText(r.selisih)}</td>
     <td>${tmBadge(r.persen)}</td>
   </tr>`;
@@ -158,40 +207,68 @@ function tmKpiCard(label, value, sub){
   </div>`;
 }
 
+// Update semua teks label/header yang menyebut nama bulan (caption, judul panel,
+// header tabel) supaya ikut bulan yang TERDETEKSI otomatis, bukan teks statis
+// "Mei/Juni/Juli" yang ditulis langsung di HTML.
+function tmUpdateMonthLabels(months){
+  const [m1, m2, m3] = months;
+  const setText = (id, text) => { const el = document.getElementById(id); if(el) el.textContent = text; };
+
+  setText('tm_period_sub', `Perbandingan pemakaian ${m2.label.toUpperCase()} \u2192 ${m3.label.toUpperCase()}`);
+  setText('tm_head1', `10 Pelanggan TM dengan Penurunan kWh Terbesar (${m2.label.toUpperCase()} \u2192 ${m3.label.toUpperCase()})`);
+  setText('tm_head2', `10 Pelanggan TM dengan Penurunan Persentase Terbesar (${m2.label.toUpperCase()} \u2192 ${m3.label.toUpperCase()})`);
+  setText('tm_head3', `10 Pelanggan TM dengan kWh Jual Tertinggi (${m3.label.toUpperCase()})`);
+  setText('tm_head4', `Pemakaian Pelanggan TM per Tarif (${m1.label.toUpperCase()}\u2013${m3.label.toUpperCase()})`);
+
+  ['tm_table_turun_kwh','tm_table_turun_persen','tm_table_top_kwh'].forEach(tableId=>{
+    setText(tableId+'_h1', 'kWh ' + m1.label);
+    setText(tableId+'_h2', 'kWh ' + m2.label);
+    setText(tableId+'_h3', 'kWh ' + m3.label);
+  });
+}
+
 function tmRender(rawRows){
-  const rows = tmParseRows(rawRows);
+  const dataRowsRaw = rawRows.filter(r => /^[0-9]+$/.test(String(r[TM_COL.IDPEL] || '').trim()));
+  const months = tmDetectMonths(dataRowsRaw);
+  if(!months){
+    setStatus('tm_status', false, 'Belum ada 3 bulan berturut-turut yang datanya closed (masih #ERROR!/kosong) pada CSV ini.');
+    return;
+  }
+  tmUpdateMonthLabels(months);
+
+  const rows = tmParseRows(rawRows, months);
   if(!rows.length){
     setStatus('tm_status', false, 'Tidak ada baris pelanggan TM yang valid ditemukan pada CSV ini.');
     return;
   }
 
-  const totalJuli = rows.reduce((a,r)=>a+r.juli,0);
-  const totalJuni = rows.reduce((a,r)=>a+r.juni,0);
+  const totalM3 = rows.reduce((a,r)=>a+r.m3,0);
+  const totalM2 = rows.reduce((a,r)=>a+r.m2,0);
   const turunRows = rows.filter(r => r.selisih.dir === 'turun');
   const naikRows = rows.filter(r => r.selisih.dir === 'naik');
   const totalTurunKwh = turunRows.reduce((a,r)=>a+r.selisih.value,0);
 
   const top10TurunKwh = [...turunRows].sort((a,b)=>b.selisih.value-a.selisih.value).slice(0,10);
   const top10TurunPersen = [...turunRows].sort((a,b)=>b.persen.value-a.persen.value).slice(0,10);
-  const top10Kwh = [...rows].sort((a,b)=>b.juli-a.juli).slice(0,10);
+  const top10Kwh = [...rows].sort((a,b)=>b.m3-a.m3).slice(0,10);
 
   tmRenderTable('tm_table_turun_kwh', top10TurunKwh, 'turun');
   tmRenderTable('tm_table_turun_persen', top10TurunPersen, 'turun');
   tmRenderTable('tm_table_top_kwh', top10Kwh, 'top');
 
   // ---- KPI ringkas ----
-  const growthTotal = totalJuni ? ((totalJuli-totalJuni)/totalJuni*100) : 0;
+  const growthTotal = totalM2 ? ((totalM3-totalM2)/totalM2*100) : 0;
   document.getElementById('tm_kpi').innerHTML = [
     tmKpiCard('Jumlah pelanggan TM', rows.length, `Tarif: ${[...new Set(rows.map(r=>r.tarif))].join(', ')}`),
-    tmKpiCard('Total kWh jual (Juli)', tmFmt(totalJuli)+' kWh', (growthTotal>=0?'▲ ':'▼ ')+tmFmt1(Math.abs(growthTotal))+'% vs Juni'),
+    tmKpiCard(`Total kWh jual (${months[2].label})`, tmFmt(totalM3)+' kWh', (growthTotal>=0?'▲ ':'▼ ')+tmFmt1(Math.abs(growthTotal))+`% vs ${months[1].label}`),
     tmKpiCard('Pelanggan turun', turunRows.length, `Total penurunan ${tmFmt(totalTurunKwh)} kWh`),
     tmKpiCard('Pelanggan naik', naikRows.length, ''),
   ].join('');
 
-  // ---- Chart pemakaian per tarif (Mei/Juni/Juli) ----
+  // ---- Chart pemakaian per tarif (3 bulan terdeteksi) ----
   const tarifList = [...new Set(rows.map(r=>r.tarif))].sort();
-  const sumByTarifMonth = (month) => tarifList.map(t =>
-    rows.filter(r=>r.tarif===t).reduce((a,r)=>a+r[month],0)
+  const sumByTarifMonth = (field) => tarifList.map(t =>
+    rows.filter(r=>r.tarif===t).reduce((a,r)=>a+r[field],0)
   );
   destroyChart('tm_tarif_chart');
   charts['tm_tarif_chart'] = new Chart(document.getElementById('tm_tarif_chart'), {
@@ -199,9 +276,9 @@ function tmRender(rawRows){
     data:{
       labels: tarifList,
       datasets:[
-        { label:'Mei',  data: sumByTarifMonth('mei'),  backgroundColor:'#8aa8c9' },
-        { label:'Juni', data: sumByTarifMonth('juni'), backgroundColor:'#2f6fa8' },
-        { label:'Juli', data: sumByTarifMonth('juli'), backgroundColor:'#0d3a5c' }
+        { label: months[0].label, data: sumByTarifMonth('m1'), backgroundColor:'#8aa8c9' },
+        { label: months[1].label, data: sumByTarifMonth('m2'), backgroundColor:'#2f6fa8' },
+        { label: months[2].label, data: sumByTarifMonth('m3'), backgroundColor:'#0d3a5c' }
       ]
     },
     options:{
@@ -210,21 +287,21 @@ function tmRender(rawRows){
       scales:{ y:{ beginAtZero:true, ticks:{ callback:v=>tmFmt(v) } } }
     }
   });
-  const tarifTop = tarifList.map(t=>({t, v: rows.filter(r=>r.tarif===t).reduce((a,r)=>a+r.juli,0)})).sort((a,b)=>b.v-a.v)[0];
+  const tarifTop = tarifList.map(t=>({t, v: rows.filter(r=>r.tarif===t).reduce((a,r)=>a+r.m3,0)})).sort((a,b)=>b.v-a.v)[0];
   document.getElementById('tm_tarif_caption').textContent = tarifTop
-    ? `Golongan tarif dengan kontribusi kWh jual TM terbesar bulan Juli: ${tarifTop.t} (${tmFmt(tarifTop.v)} kWh).`
+    ? `Golongan tarif dengan kontribusi kWh jual TM terbesar bulan ${months[2].label}: ${tarifTop.t} (${tmFmt(tarifTop.v)} kWh).`
     : '';
 
   // ---- Insight ----
   const insights = [];
-  if(top10TurunKwh[0]) insights.push(`Penurunan kWh terbesar: <b>${top10TurunKwh[0].nama}</b> (${top10TurunKwh[0].idpel}, ${top10TurunKwh[0].tarif}) turun ${tmFmt(top10TurunKwh[0].selisih.value)} kWh dari Juni ke Juli.`);
-  if(top10TurunPersen[0]) insights.push(`Penurunan persentase terbesar: <b>${top10TurunPersen[0].nama}</b> turun ${tmFmt1(top10TurunPersen[0].persen.value)}% (dari ${tmFmt(top10TurunPersen[0].juni)} ke ${tmFmt(top10TurunPersen[0].juli)} kWh).`);
-  if(top10Kwh[0]) insights.push(`Pelanggan dengan kWh jual tertinggi bulan Juli: <b>${top10Kwh[0].nama}</b> sebesar ${tmFmt(top10Kwh[0].juli)} kWh.`);
-  insights.push(`Dari ${rows.length} pelanggan TM, ${turunRows.length} mengalami penurunan pemakaian dan ${naikRows.length} mengalami kenaikan (Juni&rarr;Juli).`);
+  if(top10TurunKwh[0]) insights.push(`Penurunan kWh terbesar: <b>${top10TurunKwh[0].nama}</b> (${top10TurunKwh[0].idpel}, ${top10TurunKwh[0].tarif}) turun ${tmFmt(top10TurunKwh[0].selisih.value)} kWh dari ${months[1].label} ke ${months[2].label}.`);
+  if(top10TurunPersen[0]) insights.push(`Penurunan persentase terbesar: <b>${top10TurunPersen[0].nama}</b> turun ${tmFmt1(top10TurunPersen[0].persen.value)}% (dari ${tmFmt(top10TurunPersen[0].m2)} ke ${tmFmt(top10TurunPersen[0].m3)} kWh).`);
+  if(top10Kwh[0]) insights.push(`Pelanggan dengan kWh jual tertinggi bulan ${months[2].label}: <b>${top10Kwh[0].nama}</b> sebesar ${tmFmt(top10Kwh[0].m3)} kWh.`);
+  insights.push(`Dari ${rows.length} pelanggan TM, ${turunRows.length} mengalami penurunan pemakaian dan ${naikRows.length} mengalami kenaikan (${months[1].label}&rarr;${months[2].label}).`);
   document.getElementById('tm_insight').innerHTML = insights.map(t=>`<div>${t}</div>`).join('');
 
   showDash('tm');
-  setStatus('tm_status', true, `Berhasil memuat ${rows.length} pelanggan TM.`);
+  setStatus('tm_status', true, `Berhasil memuat ${rows.length} pelanggan TM (periode ${months[1].label} \u2192 ${months[2].label}).`);
 }
 
 async function tmLoad(){
