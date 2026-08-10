@@ -1,18 +1,22 @@
 /* ================= TAB 8: REALISASI PEMERIKSAAN PELANGGAN (P2TL) ================= */
-/* Sumber: export CSV mentah "Realisasi_P2TL.xlsx" — delimiter TITIK KOMA (;), 158 kolom.
-   Kolom yang dipakai (index 0-based sesuai struktur sheet sumber saat ini):
-     2  IDPEL
-     5  DAYA
-     16 UPDATE_STATUS   -> "Periksa - Sesuai" = normal; "Temuan - K1/K2/P1/P2/P3/P4" = pelanggaran
-     20 KWH_TS          -> kWh tagihan susulan (hanya terisi kalau ada temuan)
-     21 WAKTU_PERIKSA   -> kolom V di spreadsheet (huruf ke-22), dipakai utk clock-in/out per hari
-     22 REGU
-     65 DURASI_PERIKSA  -> menit, dipakai utk rata-rata waktu periksa per pelanggan
-   Kalau kolom di sheet sumber berubah/digeser, index ini harus disesuaikan ulang. */
-const PERIKSA_COL = { idpel:2, daya:5, updateStatus:16, kwhTs:20, waktu:21, regu:22, durasi:65 };
+/* Sumber: export CSV sheet "epm" (Google Sheets "EVALUASI LAPORAN HARIAN") — delimiter KOMA (,),
+   157 kolom, BARIS PERTAMA = header nama kolom asli (NO, ID_P2TL, IDPEL, DAYA, ...).
+   Kolom diambil berdasarkan NAMA HEADER (bukan index tetap) supaya tetap jalan walau urutan
+   kolom di sheet sumber berubah, selama nama headernya tidak diganti:
+     IDPEL, DAYA, UPDATE_STATUS  -> "Periksa - Sesuai" = normal; "Temuan - K1/K2/P1/P2/P3/P4" = pelanggaran
+     KWH_TS          -> kWh tagihan susulan (hanya terisi kalau ada temuan)
+     WAKTU_PERIKSA   -> format "YYYY-MM-DD HH:MM:SS +07:00", dipakai utk clock-in/out per hari
+     REGU
+     DURASI_PERIKSA  -> menit, dipakai utk rata-rata waktu periksa per pelanggan
+   Kalau nama kolom di sheet sumber berganti nama, sesuaikan PERIKSA_HEADER_NAMES di bawah. */
+const PERIKSA_HEADER_NAMES = {
+  idpel: 'IDPEL', daya: 'DAYA', updateStatus: 'UPDATE_STATUS',
+  kwhTs: 'KWH_TS', waktu: 'WAKTU_PERIKSA', regu: 'REGU', durasi: 'DURASI_PERIKSA'
+};
 const PERIKSA_KATEGORI = ['K1','K2','K3','K4','P1','P2','P3','P4'];
 
-// Parser CSV delimiter ";" yang menghormati tanda kutip.
+// Parser CSV delimiter "," yang menghormati tanda kutip. Baris pertama SELALU dianggap
+// header berisi nama kolom (dicocokkan ke PERIKSA_HEADER_NAMES di atas oleh periksaParseRaw()).
 function periksaParseCsvText(text){
   const rows = [];
   let row = [], field = '', inQuotes = false;
@@ -23,7 +27,7 @@ function periksaParseCsvText(text){
       else field += c;
     } else {
       if(c === '"') inQuotes = true;
-      else if(c === ';'){ row.push(field); field=''; }
+      else if(c === ','){ row.push(field); field=''; }
       else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=''; }
       else if(c === '\r'){ /* biarkan \n yang menutup baris */ }
       else field += c;
@@ -31,6 +35,24 @@ function periksaParseCsvText(text){
   }
   if(field!=='' || row.length){ row.push(field); rows.push(row); }
   return rows;
+}
+// Cari index kolom berdasarkan nama header persis (case-insensitive).
+function periksaFindColIndex(headerRow, name){
+  const idx = headerRow.findIndex(h => String(h).trim().toUpperCase() === name.toUpperCase());
+  return idx === -1 ? null : idx;
+}
+// Parsing WAKTU_PERIKSA format "YYYY-MM-DD HH:MM:SS +07:00" — ada SPASI sebelum offset
+// zona waktu, yang membuat `new Date()` bawaan gagal (Invalid Date) kalau cuma spasi
+// pertama yang diganti 'T'. Di sini spasi sebelum offset (+07:00 / -07:00) dibuang dulu,
+// baru spasi pemisah tanggal-jam diganti 'T'.
+function periksaParseWaktu(raw){
+  if(!raw) return null;
+  let s = String(raw).trim();
+  if(!s) return null;
+  s = s.replace(/ (?=[+-]\d{2}:\d{2}$)/, ''); // buang spasi sebelum offset timezone
+  s = s.replace(' ', 'T');                    // pemisah tanggal & jam -> ISO
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
 }
 function periksaNum(s){
   if(s==null) return 0;
@@ -52,23 +74,31 @@ let periksaData = [];
 
 function periksaParseRaw(text){
   const rows = periksaParseCsvText(text);
+  if(!rows.length) return [];
+
+  // Baris pertama = header nama kolom. Bangun peta index dinamis dari situ, supaya
+  // tetap bekerja walau urutan kolom sheet sumber berubah.
+  const headerRow = rows[0];
+  const col = {};
+  for(const key in PERIKSA_HEADER_NAMES){
+    col[key] = periksaFindColIndex(headerRow, PERIKSA_HEADER_NAMES[key]);
+  }
+
   const data = [];
-  for(const r of rows){
-    const no = (r[0]||'').trim();
-    if(!/^\d+$/.test(no)) continue; // lewati baris header/kosong (kolom NO selalu angka urut)
-    const idpel = (r[PERIKSA_COL.idpel]||'').trim();
-    if(!idpel) continue;
-    const status = (r[PERIKSA_COL.updateStatus]||'').trim();
-    const waktuRaw = (r[PERIKSA_COL.waktu]||'').trim();
+  for(let i=1;i<rows.length;i++){
+    const r = rows[i];
+    const idpel = (r[col.idpel]||'').trim();
+    if(!idpel || !/^\d+$/.test(idpel)) continue; // lewati baris kosong/rusak (IDPEL selalu angka)
+    const status = (r[col.updateStatus]||'').trim();
     data.push({
       idpel,
-      daya: periksaNum(r[PERIKSA_COL.daya]),
+      daya: periksaNum(r[col.daya]),
       status,
       kategori: periksaKategori(status), // null = normal
-      kwhTs: periksaNum(r[PERIKSA_COL.kwhTs]),
-      waktu: waktuRaw ? new Date(waktuRaw.replace(' ','T')) : null,
-      regu: (r[PERIKSA_COL.regu]||'').trim(),
-      durasi: periksaNum(r[PERIKSA_COL.durasi])
+      kwhTs: periksaNum(r[col.kwhTs]),
+      waktu: periksaParseWaktu(r[col.waktu]),
+      regu: (r[col.regu]||'').trim(),
+      durasi: periksaNum(r[col.durasi])
     });
   }
   return data;
@@ -225,20 +255,16 @@ async function periksaLoad(){
 
 function periksaSample(){
   const rows = [
-    {no:1, idpel:'515010156590', daya:'1300', status:'Periksa - Sesuai', kwhts:'0', waktu:'2026-07-01 08:15:00', regu:'51501.ULP_MADIUN_KOTA_REGU_1', durasi:15},
-    {no:2, idpel:'515010156591', daya:'900',  status:'Temuan - K2',      kwhts:'440', waktu:'2026-07-01 09:05:00', regu:'51501.ULP_MADIUN_KOTA_REGU_1', durasi:42},
-    {no:3, idpel:'515010156592', daya:'450',  status:'Periksa - Sesuai', kwhts:'0', waktu:'2026-07-01 14:40:00', regu:'51501.ULP_MADIUN_KOTA_REGU_1', durasi:8},
-    {no:4, idpel:'515030156593', daya:'2200', status:'Temuan - P4',      kwhts:'2479', waktu:'2026-07-01 10:20:00', regu:'51503.ULP_MAGETAN_REGU_1', durasi:30},
-    {no:5, idpel:'515030156594', daya:'900',  status:'Periksa - Sesuai', kwhts:'0', waktu:'2026-07-01 15:10:00', regu:'51503.ULP_MAGETAN_REGU_1', durasi:20},
+    {no:1, idpel:'515010156590', daya:'1300', status:'Periksa - Sesuai', kwhts:'0', waktu:'2026-07-01 08:15:00 +07:00', regu:'51501.ULP_MADIUN_KOTA_REGU_1', durasi:15},
+    {no:2, idpel:'515010156591', daya:'900',  status:'Temuan - K2',      kwhts:'440', waktu:'2026-07-01 09:05:00 +07:00', regu:'51501.ULP_MADIUN_KOTA_REGU_1', durasi:42},
+    {no:3, idpel:'515010156592', daya:'450',  status:'Periksa - Sesuai', kwhts:'0', waktu:'2026-07-01 14:40:00 +07:00', regu:'51501.ULP_MADIUN_KOTA_REGU_1', durasi:8},
+    {no:4, idpel:'515030156593', daya:'2200', status:'Temuan - P4',      kwhts:'2479', waktu:'2026-07-01 10:20:00 +07:00', regu:'51503.ULP_MAGETAN_REGU_1', durasi:30},
+    {no:5, idpel:'515030156594', daya:'900',  status:'Periksa - Sesuai', kwhts:'0', waktu:'2026-07-01 15:10:00 +07:00', regu:'51503.ULP_MAGETAN_REGU_1', durasi:20},
   ];
-  const width = 158;
-  const mkRow = (cells)=>{ const arr = new Array(width).fill(''); Object.entries(cells).forEach(([k,v])=>arr[k]=v); return arr.join(';'); };
-  const lines = [];
+  const header = ['NO','ID_P2TL','IDPEL','DAYA','UPDATE_STATUS','KWH_TS','WAKTU_PERIKSA','REGU','DURASI_PERIKSA'];
+  const lines = [header.join(',')];
   rows.forEach(r=>{
-    lines.push(mkRow({
-      0:r.no, [PERIKSA_COL.idpel]:r.idpel, [PERIKSA_COL.daya]:r.daya, [PERIKSA_COL.updateStatus]:r.status,
-      [PERIKSA_COL.kwhTs]:r.kwhts, [PERIKSA_COL.waktu]:r.waktu, [PERIKSA_COL.regu]:r.regu, [PERIKSA_COL.durasi]:r.durasi
-    }));
+    lines.push([r.no, '', r.idpel, r.daya, r.status, r.kwhts, r.waktu, r.regu, r.durasi].join(','));
   });
   periksaRender(lines.join('\n'));
 }
