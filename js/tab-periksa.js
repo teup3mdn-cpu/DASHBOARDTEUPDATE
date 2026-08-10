@@ -10,7 +10,7 @@
      DURASI_PERIKSA  -> menit, dipakai utk rata-rata waktu periksa per pelanggan
    Kalau nama kolom di sheet sumber berganti nama, sesuaikan PERIKSA_HEADER_NAMES di bawah. */
 const PERIKSA_HEADER_NAMES = {
-  idpel: 'IDPEL', daya: 'DAYA', updateStatus: 'UPDATE_STATUS',
+  no: 'NO', idpel: 'IDPEL', daya: 'DAYA', updateStatus: 'UPDATE_STATUS',
   kwhTs: 'KWH_TS', waktu: 'WAKTU_PERIKSA', regu: 'REGU', durasi: 'DURASI_PERIKSA'
 };
 const PERIKSA_KATEGORI = ['K1','K2','K3','K4','P1','P2','P3','P4'];
@@ -87,8 +87,15 @@ function periksaParseRaw(text){
   const data = [];
   for(let i=1;i<rows.length;i++){
     const r = rows[i];
+    // Validasi baris pakai kolom NO (selalu angka urut 1,2,3,...), BUKAN pakai IDPEL —
+    // karena sebagian baris pemeriksaan valid (lokasi tanpa pelanggan terdaftar, mis. cek
+    // jaringan/gardu) punya IDPEL berupa teks seperti "NONPELANGGAN" atau "51503NONPLG",
+    // bukan nomor pelanggan. Baris seperti ini tetap pemeriksaan yang sah dan harus ikut
+    // dihitung, hanya baris benar-benar kosong/rusak yang dibuang.
+    const no = (r[col.no]||'').trim();
+    if(!/^\d+$/.test(no)) continue;
     const idpel = (r[col.idpel]||'').trim();
-    if(!idpel || !/^\d+$/.test(idpel)) continue; // lewati baris kosong/rusak (IDPEL selalu angka)
+    if(!idpel) continue;
     const status = (r[col.updateStatus]||'').trim();
     data.push({
       idpel,
